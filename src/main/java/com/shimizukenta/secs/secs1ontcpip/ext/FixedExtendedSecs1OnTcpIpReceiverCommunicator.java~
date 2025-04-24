@@ -1,0 +1,551 @@
+package com.shimizukenta.secs.secs1ontcpip.ext;
+
+import com.shimizukenta.secs.SecsException;
+import com.shimizukenta.secs.SecsMessage;
+import com.shimizukenta.secs.SecsSendMessageException;
+import com.shimizukenta.secs.secs1.Secs1Message;
+import com.shimizukenta.secs.secs1.Secs1SendByteException;
+import com.shimizukenta.secs.secs1.Secs1SendMessageException;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpNotConnectedException;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicator;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
+import com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpReceiverCommunicator;
+import com.shimizukenta.secs.secs2.Secs2;
+
+import java.io.IOException;
+import java.net.SocketAddress;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * 修复版的扩展SECS-I TCP/IP接收器通信器，支持向特定客户端发送消息
+ *
+ * 基于 TCP 长连接的特性，使用客户端的远程 IP 和端口作为唯一标识符
+ */
+public class FixedExtendedSecs1OnTcpIpReceiverCommunicator extends AbstractSecs1OnTcpIpReceiverCommunicator {
+
+    private static final Logger logger = Logger.getLogger(FixedExtendedSecs1OnTcpIpReceiverCommunicator.class.getName());
+
+    // 存储客户端地址和通道的映射
+    private final Map<SocketAddress, AsynchronousSocketChannel> clientChannels = new ConcurrentHashMap<>();
+
+    // 存储通道和地址的映射（反向映射）
+    private final Map<AsynchronousSocketChannel, SocketAddress> channelAddresses = new ConcurrentHashMap<>();
+
+    // 当前消息的来源通道，使用ThreadLocal确保线程安全
+    private final ThreadLocal<AsynchronousSocketChannel> currentMessageChannel = new ThreadLocal<>();
+
+    /**
+     * 构造函数
+     *
+     * @param config 配置
+     * @throws IOException 如果创建通信器失败
+     */
+    public FixedExtendedSecs1OnTcpIpReceiverCommunicator(Secs1OnTcpIpReceiverCommunicatorConfig config) throws IOException {
+        super(config);
+
+        // 添加日志监听器，跟踪客户端连接和断开连接事件
+        addConnectionLogListener();
+
+        // 添加消息接收监听器，跟踪消息来源并设置源地址
+        this.addSecsMessageReceiveListener(message -> {
+            try {
+                // 获取当前消息的来源通道
+                AsynchronousSocketChannel currentChannel = currentMessageChannel.get();
+                if (currentChannel != null) {
+                    // 获取通道对应的地址
+                    SocketAddress sourceAddr = channelAddresses.get(currentChannel);
+                    if (sourceAddr != null) {
+                        // 设置消息的源地址
+                        setSourceAddressToMessage(message, sourceAddr);
+
+                        // 设置最后接收地址，用于跟踪当前消息的来源
+                        lastReceivedAddress = sourceAddr;
+
+                        logger.info("[DEBUG] 收到来自 " + sourceAddr + " 的消息: S" + message.getStream() + "F" + message.getFunction());
+                    }
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "[DEBUG] 处理消息接收事件失败: " + e.getMessage(), e);
+            }
+        });
+    }
+
+    /**
+     * 重写父类的reading方法，在读取数据前设置当前通道
+     *
+     * @param channel 客户端通道
+     * @throws Exception 如果处理消息失败
+     */
+    @Override
+    protected void reading(AsynchronousSocketChannel channel) throws Exception {
+        // 设置当前通道
+        currentMessageChannel.set(channel);
+
+        try {
+            // 获取客户端地址
+            SocketAddress clientAddr = channel.getRemoteAddress();
+
+            if (clientAddr != null) {
+                // 记录客户端地址和通道的映射关系
+                channelAddresses.put(channel, clientAddr);
+                clientChannels.put(clientAddr, channel);
+
+                logger.info("[DEBUG] reading: 记录客户端地址和通道映射 " + clientAddr + " -> " + channel);
+
+
+            }
+
+            // 调用父类的reading方法处理消息
+            super.reading(channel);
+        } catch (Exception e) {
+            logger.warning("[DEBUG] reading: 处理消息失败 " + e.getMessage());
+            throw e;
+        } finally {
+            // 不要清除当前通道，因为消息处理可能还没有完成
+            // currentMessageChannel.remove();
+        }
+    }
+
+
+
+    /**
+     * 创建新实例
+     *
+     * @param config 配置
+     * @return 新实例
+     * @throws IOException 如果创建失败
+     */
+    public static FixedExtendedSecs1OnTcpIpReceiverCommunicator newInstance(Secs1OnTcpIpReceiverCommunicatorConfig config) throws IOException {
+        return new FixedExtendedSecs1OnTcpIpReceiverCommunicator(config);
+    }
+
+    /**
+     * 添加日志监听器，跟踪客户端连接和断开连接事件
+     */
+    private void addConnectionLogListener() {
+        this.addSecsLogListener(log -> {
+            String logMessage = log.toString();
+            try {
+                if (logMessage.contains("Accepted") && logMessage.contains("SECS1-onTCP/IP-Communicator")) {
+                    // 客户端连接事件
+                    handleClientConnectionFromLog(logMessage, true);
+                } else if (logMessage.contains("AcceptClosed") && logMessage.contains("SECS1-onTCP/IP-Communicator")) {
+                    // 客户端断开连接事件
+                    handleClientConnectionFromLog(logMessage, false);
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "处理日志事件失败: " + logMessage, e);
+            }
+        });
+    }
+
+    /**
+     * 从日志消息中处理客户端连接事件
+     *
+     * @param logMessage 日志消息
+     * @param isConnected true表示连接事件，false表示断开连接事件
+     */
+    private void handleClientConnectionFromLog(String logMessage, boolean isConnected) {
+        try {
+            // 从日志消息中提取客户端地址
+            SocketAddress clientAddr = extractAddressFromLog(logMessage);
+            if (clientAddr == null) {
+                return;
+            }
+
+            if (isConnected) {
+                // 客户端连接事件
+                logger.info("客户端连接事件: " + clientAddr);
+
+                // 客户端连接事件已经在reading方法中处理
+                logger.info("新客户端连接: " + clientAddr + ", 当前连接数: " + clientChannels.size());
+            } else {
+                // 客户端断开连接事件
+                logger.info("客户端断开连接事件: " + clientAddr);
+
+                // 获取客户端通道
+                AsynchronousSocketChannel clientChannel = clientChannels.get(clientAddr);
+                if (clientChannel != null) {
+                    // 移除客户端地址和通道的映射
+                    clientChannels.remove(clientAddr);
+                    channelAddresses.remove(clientChannel);
+                    logger.info("客户端断开连接: " + clientAddr + ", 当前连接数: " + clientChannels.size());
+                }
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "处理客户端连接事件失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 从日志消息中提取客户端地址
+     *
+     * @param logMessage 日志消息
+     * @return 客户端地址，如果无法提取则返回null
+     */
+    private SocketAddress extractAddressFromLog(String logMessage) {
+        try {
+            // 从日志消息中提取客户端地址
+            String remoteAddrStr = null;
+
+            // 尝试解析JSON格式
+            if (logMessage.contains("{\"state\":") && logMessage.contains("\"remote\":")) {
+                int remoteStartIndex = logMessage.indexOf("\"remote\":") + 10; // "remote":" 长度为10
+                int remoteEndIndex = logMessage.indexOf("\"", remoteStartIndex);
+                if (remoteStartIndex > 0 && remoteEndIndex > remoteStartIndex) {
+                    remoteAddrStr = logMessage.substring(remoteStartIndex, remoteEndIndex);
+                }
+            } else {
+                // 尝试解析普通格式
+                int remoteIndex = logMessage.indexOf("remote:");
+                if (remoteIndex > 0) {
+                    remoteAddrStr = logMessage.substring(remoteIndex + 7).trim();
+                    // 如果有多余的内容，只取第一部分
+                    if (remoteAddrStr.contains(" ")) {
+                        remoteAddrStr = remoteAddrStr.substring(0, remoteAddrStr.indexOf(" "));
+                    }
+                }
+            }
+
+            if (remoteAddrStr != null) {
+                // 创建客户端地址对象
+                // 格式可能是类似于 "/127.0.0.1:49876"
+                if (remoteAddrStr.startsWith("/")) {
+                    remoteAddrStr = remoteAddrStr.substring(1);
+                }
+
+                // 分离 IP 和端口
+                String[] parts = remoteAddrStr.split(":");
+                if (parts.length == 2) {
+                    String ip = parts[0];
+                    int port = Integer.parseInt(parts[1]);
+                    return new java.net.InetSocketAddress(ip, port);
+                }
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "从日志消息中提取客户端地址失败: " + e.getMessage(), e);
+        }
+        return null;
+    }
+
+
+
+    /**
+     * 重写父类的putBytes方法，设置当前消息的来源通道
+     *
+     * @param bs 字节数组
+     * @throws InterruptedException 如果线程被中断
+     */
+    @Override
+    protected void putBytes(byte[] bs) throws InterruptedException {
+        // 获取当前消息的来源通道
+        AsynchronousSocketChannel channel = currentMessageChannel.get();
+        SocketAddress sourceAddr = null;
+
+        if (channel != null) {
+            try {
+                // 获取通道对应的地址
+                sourceAddr = channelAddresses.get(channel);
+                if (sourceAddr != null) {
+                    logger.info("[DEBUG] putBytes: 当前消息来自 " + sourceAddr);
+                }
+            } catch (Exception e) {
+                logger.warning("[DEBUG] putBytes: 获取客户端地址失败 " + e.getMessage());
+            }
+        }
+
+        try {
+            // 调用父类的putBytes方法处理消息
+            super.putBytes(bs);
+        } finally {
+            // 不要清除当前通道，因为消息处理可能还没有完成
+            // currentMessageChannel.remove();
+        }
+    }
+
+    /**
+     * 向特定客户端发送消息
+     *
+     * @param clientAddr 客户端地址
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param wbit 是否需要回复
+     * @param secs2 消息数据
+     * @return 消息，如果发送失败则返回空
+     * @throws SecsSendMessageException 如果发送消息失败
+     * @throws InterruptedException 如果线程被中断
+     * @throws SecsException 如果发送消息失败
+     */
+    public Optional<SecsMessage> sendToClient(SocketAddress clientAddr, int stream, int function, boolean wbit, Secs2 secs2)
+            throws SecsSendMessageException, InterruptedException, SecsException {
+
+        // 检查客户端地址是否有效
+        if (clientAddr == null) {
+            logger.warning("客户端地址为空");
+            throw new SecsSendMessageException("Client address is null");
+        }
+
+        logger.info(String.format("向客户端 %s 发送消息: S%dF%d%s",
+                clientAddr, stream, function, (wbit ? " W" : "")));
+
+        // 获取客户端通道
+        AsynchronousSocketChannel clientChannel = clientChannels.get(clientAddr);
+        if (clientChannel == null || !clientChannel.isOpen()) {
+            logger.warning("客户端通道不存在或已关闭: " + clientAddr);
+            throw new SecsSendMessageException("Client channel not found or closed: " + clientAddr);
+        }
+
+        try {
+            // 设置目标通道
+            targetChannel.set(clientChannel);
+
+            // 使用标准方法发送消息
+            return super.send(stream, function, wbit, secs2);
+        } finally {
+            // 清除目标通道
+            targetChannel.remove();
+        }
+    }
+
+    /**
+     * 重写父类的getChannel方法，使用当前消息的来源通道
+     *
+     * @return 当前消息的来源通道
+     * @throws Secs1OnTcpIpNotConnectedException 如果没有可用的通道
+     */
+    // 当前消息的目标通道，用于发送响应
+    private final ThreadLocal<AsynchronousSocketChannel> targetChannel = new ThreadLocal<>();
+
+    @Override
+    protected AsynchronousSocketChannel getChannel() throws Secs1OnTcpIpNotConnectedException {
+        // 检查是否有目标通道
+        AsynchronousSocketChannel channel = targetChannel.get();
+
+        if (channel != null && channel.isOpen()) {
+            // 如果有目标通道，使用它
+            logger.info("[DEBUG] getChannel: 使用目标通道 " + channel);
+            return channel;
+        }
+
+        // 如果没有目标通道，使用父类的方法
+        logger.info("[DEBUG] getChannel: 使用父类方法获取通道");
+        return super.getChannel();
+    }
+
+    /**
+     * 重写父类的sendBytes方法，向特定客户端发送字节数组
+     *
+     * @param bs 字节数组
+     * @throws Secs1SendByteException 如果发送失败
+     * @throws InterruptedException 如果线程被中断
+     */
+    @Override
+    public void sendBytes(byte[] bs) throws Secs1SendByteException, InterruptedException {
+        // 直接使用父类的sendBytes方法
+        // 父类的sendBytes方法会调用我们重写的getChannel方法
+        super.sendBytes(bs);
+    }
+
+    /**
+     * 重写父类的send方法，确保消息发送到正确的客户端
+     *
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param wbit 是否需要回复
+     * @param secs2 消息数据
+     * @return 如果wbit为true，则返回回复消息；否则返回空
+     * @throws SecsException 如果发送失败
+     * @throws InterruptedException 如果线程被中断
+     */
+    @Override
+    public Optional<SecsMessage> send(int stream, int function, boolean wbit, Secs2 secs2)
+            throws SecsException, InterruptedException {
+
+        logger.info("发送消息: S" + stream + "F" + function + (wbit ? " W" : "") + ", ThreadId=" + Thread.currentThread().getId());
+        logger.warning("[DEBUG] send(stream): 这个方法不应该用于发送响应消息，请使用sendToClient方法");
+
+        // 这个方法只应该用于主动发送消息，而不是响应消息
+        // 如果需要发送到特定客户端，应该使用sendToClient方法
+        throw new SecsException("This method should not be used for sending response messages. Use sendToClient instead.");
+    }
+
+    /**
+     * 从消息对象中获取源地址
+     *
+     * @param message 消息对象
+     * @return 源地址，如果无法获取则返回null
+     */
+    private SocketAddress getSourceAddressFromMessage(SecsMessage message) {
+        if (message == null) {
+            return null;
+        }
+
+        try {
+            // 直接使用接口方法获取源地址
+            return message.getSourceAddress();
+        } catch (Exception e) {
+            // 忽略获取失败的异常
+            logger.fine("[DEBUG] getSourceAddressFromMessage: 获取消息源地址失败: " + e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * 设置消息的源地址
+     *
+     * @param message 消息对象
+     * @param sourceAddr 源地址
+     */
+    private void setSourceAddressToMessage(SecsMessage message, SocketAddress sourceAddr) {
+        if (message == null || sourceAddr == null) {
+            return;
+        }
+
+        try {
+            // 直接使用接口方法设置源地址
+            message.setSourceAddress(sourceAddr);
+            logger.fine("[DEBUG] setSourceAddressToMessage: 设置消息源地址成功: " + sourceAddr);
+        } catch (Exception e) {
+            // 忽略设置失败的异常
+            logger.fine("[DEBUG] setSourceAddressToMessage: 设置消息源地址失败: " + e.getMessage());
+        }
+    }
+
+
+    /**
+     * 重写父类的send方法，确保消息发送到正确的客户端
+     *
+     * @param message 原始消息
+     * @param strm 流ID
+     * @param func 功能ID
+     * @param wbit 是否需要回复
+     * @param secs2 消息数据
+     * @return 消息，如果发送失败则返回空
+     * @throws SecsException 如果发送消息失败
+     * @throws InterruptedException 如果线程被中断
+     * @throws SecsSendMessageException 如果发送消息失败
+     */
+    @Override
+    public Optional<SecsMessage> send(SecsMessage message, int strm, int func, boolean wbit, Secs2 secs2)
+            throws SecsException, InterruptedException, SecsSendMessageException {
+
+        logger.info("发送消息: S" + strm + "F" + func + (wbit ? " W" : "") + ", ThreadId=" + Thread.currentThread().getId());
+
+        // 尝试从消息中获取源地址
+        SocketAddress sourceAddr = getSourceAddressFromMessage(message);
+
+        // 如果消息没有源地址，尝试使用当前通道
+        if (sourceAddr == null) {
+            AsynchronousSocketChannel currentChannel = currentMessageChannel.get();
+            if (currentChannel != null) {
+                try {
+                    sourceAddr = channelAddresses.get(currentChannel);
+                    if (sourceAddr != null) {
+                        logger.info("[DEBUG] send(message): 使用当前通道的地址 " + sourceAddr);
+                    }
+                } catch (Exception e) {
+                    logger.warning("[DEBUG] send(message): 获取当前通道地址失败 " + e.getMessage());
+                }
+            }
+        }
+
+
+
+        try {
+            if (sourceAddr != null) {
+                // 如果有源地址，使用它查找对应的通道
+                AsynchronousSocketChannel channel = clientChannels.get(sourceAddr);
+
+                if (channel != null && channel.isOpen()) {
+                    // 设置目标通道
+                    targetChannel.set(channel);
+                    logger.info("[DEBUG] send(message): 使用消息源地址 " + sourceAddr + " 找到通道，发送响应");
+                } else {
+                    logger.warning("[DEBUG] send(message): 未找到消息源地址 " + sourceAddr + " 对应的通道，无法发送响应");
+                    throw new SecsSendMessageException("Client channel not found or closed for address: " + sourceAddr);
+                }
+            } else {
+                logger.warning("[DEBUG] send(message): 消息没有源地址，无法发送响应");
+                throw new SecsSendMessageException("Message has no source address");
+            }
+
+            // 使用父类的send方法，它会调用我们重写的getChannel()方法获取当前通道
+            return super.send(message, strm, func, wbit, secs2);
+        } finally {
+            // 发送完成后清除目标通道
+            targetChannel.remove();
+        }
+    }
+
+    /**
+     * 向所有客户端广播消息
+     *
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param wbit 是否需要回复
+     * @param secs2 消息数据
+     * @return 成功发送的客户端数量
+     */
+    public int broadcastToAllClients(int stream, int function, boolean wbit, Secs2 secs2) {
+        int successCount = 0;
+
+        // 复制客户端地址列表，避免并发修改问题
+        List<SocketAddress> clientAddresses = new ArrayList<>(clientChannels.keySet());
+
+        for (SocketAddress clientAddr : clientAddresses) {
+            try {
+                sendToClient(clientAddr, stream, function, wbit, secs2);
+                successCount++;
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "向客户端 " + clientAddr + " 广播消息失败: " + e.getMessage(), e);
+            }
+        }
+
+        return successCount;
+    }
+
+    /**
+     * 获取客户端通道
+     *
+     * @param clientAddr 客户端地址
+     * @return 客户端通道，如果找不到则返回null
+     */
+    public AsynchronousSocketChannel getClientChannel(SocketAddress clientAddr) {
+        if (clientAddr == null) {
+            return null;
+        }
+
+        // 直接从映射中获取客户端通道
+        return clientChannels.get(clientAddr);
+    }
+
+    /**
+     * 获取当前连接的客户端数量
+     *
+     * @return 客户端数量
+     */
+    public int getClientCount() {
+        return clientChannels.size();
+    }
+
+    /**
+     * 获取当前连接的客户端地址列表
+     *
+     * @return 客户端地址列表
+     */
+    public List<SocketAddress> getClientAddresses() {
+        return new ArrayList<>(clientChannels.keySet());
+    }
+}

@@ -237,7 +237,7 @@ public abstract class AbstractSecs1OnTcpIpReceiverCommunicator extends AbstractS
 		}
 	}
 	
-	protected AsynchronousSocketChannel getChannel() throws Secs1OnTcpIpNotConnectedException {
+	private AsynchronousSocketChannel getChannel() throws Secs1OnTcpIpNotConnectedException {
 		synchronized ( this.channels ) {
 			if ( this.channels.isEmpty() ) {
 				throw new Secs1OnTcpIpNotConnectedException();

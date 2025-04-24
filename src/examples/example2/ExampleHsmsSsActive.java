@@ -54,7 +54,7 @@ public class ExampleHsmsSsActive {
 		config.timeout().t5(10.0F);
 		config.timeout().t6( 5.0F);
 		config.timeout().t8( 6.0F);
-		
+		config.timeout().t7(15.0F);
 		try (
 				HsmsSsCommunicator comm = HsmsSsCommunicator.newInstance(config);
 				) {
