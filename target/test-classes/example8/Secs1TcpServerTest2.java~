@@ -1,26 +1,26 @@
 package example8;
 
+import com.shimizukenta.secs.SecsCommunicator;
+import com.shimizukenta.secs.SecsException;
+import com.shimizukenta.secs.SecsMessage;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicator;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
+import com.shimizukenta.secs.secs1ontcpip.ext.ExtendedSecs1OnTcpIpReceiverCommunicator;
+import com.shimizukenta.secs.secs2.Secs2;
+import com.shimizukenta.secs.secs2.Secs2Exception;
+
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.shimizukenta.secs.SecsException;
-import com.shimizukenta.secs.SecsMessage;
-import com.shimizukenta.secs.SecsCommunicator;
-import com.shimizukenta.secs.SecsSendMessageException;
-import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicator;
-import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
-import com.shimizukenta.secs.secs2.Secs2;
-import com.shimizukenta.secs.secs2.Secs2Exception;
 
 /**
  * SECS-I TCP服务器测试类
@@ -33,9 +33,9 @@ import com.shimizukenta.secs.secs2.Secs2Exception;
  * 2. 接收并处理客户端的各种SECS消息
  * 3. 发送响应和主动请求
  */
-public class Secs1TcpServerTest {
+public class Secs1TcpServerTest2 {
 
-    private static final Logger logger = Logger.getLogger(Secs1TcpServerTest.class.getName());
+    private static final Logger logger = Logger.getLogger(Secs1TcpServerTest2.class.getName());
 
     // 配置参数
     private static final String SERVER_IP = "127.0.0.1";  // 服务器IP地址
@@ -54,58 +54,48 @@ public class Secs1TcpServerTest {
     private final Map<SocketAddress, ClientInfo> clientChannels = new ConcurrentHashMap<>();
 
     /**
-     * 客户端信息类，存储客户端地址和专用的通信器
+     * 客户端信息类，存储客户端地址、通道和通信器
      */
     private static class ClientInfo {
         private final SocketAddress address;
+        private final AsynchronousSocketChannel channel;
         private final SecsCommunicator communicator;
-        private final int clientId;
-        private final long connectTime;
 
-        public ClientInfo(SocketAddress address, SecsCommunicator communicator, int clientId) {
+        public ClientInfo(SocketAddress address, AsynchronousSocketChannel channel, SecsCommunicator communicator) {
             this.address = address;
+            this.channel = channel;
             this.communicator = communicator;
-            this.clientId = clientId;
-            this.connectTime = System.currentTimeMillis();
+        }
+
+        public ClientInfo(SocketAddress address, SecsCommunicator communicator) {
+            this(address, null, communicator);
         }
 
         public SocketAddress getAddress() {
             return address;
         }
 
+        public AsynchronousSocketChannel getChannel() {
+            return channel;
+        }
+
         public SecsCommunicator getCommunicator() {
             return communicator;
-        }
-
-        public int getClientId() {
-            return clientId;
-        }
-
-        public long getConnectTime() {
-            return connectTime;
-        }
-
-        public String getConnectTimeString() {
-            return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(connectTime));
         }
     }
 
     // 通信器实例
     private final SecsCommunicator communicator;
 
-    // 扩展的通信器实例，用于向特定客户端发送消息
-    // 注意：我们不再使用扩展的通信器，而是使用原始的通信器
-    private final SecsCommunicator mainCommunicator;
-
-    // 客户端计数器，用于生成客户端ID
-    private final AtomicInteger clientIdCounter = new AtomicInteger(1);
+    // 扩展通信器实例，用于向特定客户端发送消息
+    private final ExtendedSecs1OnTcpIpReceiverCommunicator mainCommunicator;
 
     /**
      * 构造函数
      *
      * @throws IOException 如果创建通信器失败
      */
-    public Secs1TcpServerTest() throws IOException, SecsSendMessageException {
+    public Secs1TcpServerTest2() throws IOException {
         // 创建SECS-I接收器配置
         Secs1OnTcpIpReceiverCommunicatorConfig config = new Secs1OnTcpIpReceiverCommunicatorConfig();
 
@@ -121,67 +111,45 @@ public class Secs1TcpServerTest {
         // 设置为主机端
         config.isEquip(IS_EQUIP);
 
-        // 设置超时参数 - 优化多客户端连接的超时时间
-        config.timeout().t1(1.0F);     // ENQ超时 - 减少以加快响应
-        config.timeout().t2(45.0F);    // 回复超时 - 增加以处理多客户端
-        config.timeout().t3(90.0F);    // 发送超时 - 增加以处理大消息
-        config.timeout().t4(90.0F);    // 中间响应超时 - 增加以处理复杂响应
+        // 设置超时参数
+        config.timeout().t1(1.0F);     // ENQ超时
+        config.timeout().t2(15.0F);    // 回复超时
+        config.timeout().t3(45.0F);    // 发送超时
+        config.timeout().t4(45.0F);    // 中间响应超时
 
-        // 设置重试次数 - 优化多客户端连接的重试策略
-        config.retry(3);  // 减少重试次数以避免过多重试导致的阻塞
+        // 设置重试次数
+        config.retry(3);
 
-        // 尝试设置其他参数来支持多客户端
+        // 允许多个连接
         try {
-            // 尝试设置连接模式
-            java.lang.reflect.Method connectionModeMethod = config.getClass().getMethod("connectionMode", Object.class);
-            connectionModeMethod.invoke(config, "PASSIVE");
-            logger.info("设置连接模式为PASSIVE成功");
-
-            // 尝试设置最大连接数
-            try {
-                java.lang.reflect.Method maxConnectionsMethod = config.getClass().getMethod("maxConnections", int.class);
-                maxConnectionsMethod.invoke(config, 10); // 允许10个客户端同时连接
-                logger.info("设置最大连接数为10成功");
-            } catch (NoSuchMethodException e) {
-                logger.info("无法设置最大连接数，使用默认值");
-            }
-
-            // 尝试设置缓冲区大小
-            try {
-                java.lang.reflect.Method bufferSizeMethod = config.getClass().getMethod("bufferSize", int.class);
-                bufferSizeMethod.invoke(config, 65536); // 设置更大的缓冲区
-                logger.info("设置缓冲区大小为65536成功");
-            } catch (NoSuchMethodException e) {
-                logger.info("无法设置缓冲区大小，使用默认值");
-            }
+            // 尝试设置连接模式，如果有这个方法
+            java.lang.reflect.Method method = config.getClass().getMethod("connectionMode", Object.class);
+            method.invoke(config, "PASSIVE");
         } catch (Exception e) {
-            // 其他异常
-            logger.warning("设置高级参数失败: " + e.getMessage());
+            // 忽略异常，可能该版本没有这个方法
+            logger.info("设置连接模式失败，使用默认模式");
         }
 
-        // 创建原始的通信器，用于接受客户端连接
-        System.out.println("[DEBUG-INIT] 创建原始的通信器");
-        this.communicator = Secs1OnTcpIpReceiverCommunicator.newInstance(config);
+        // 创建扩展通信器，支持多客户端连接
+        System.out.println("[DEBUG-INIT] 创建扩展通信器，支持多客户端连接");
+        try {
+            this.mainCommunicator = ExtendedSecs1OnTcpIpReceiverCommunicator.newInstance(config);
 
-        // 使用同一个通信器实例
-        this.mainCommunicator = this.communicator;
+            // 为兼容性保留原来的communicator引用
+            this.communicator = this.mainCommunicator;
 
-        // 设置日志级别为INFO
-        Logger.getLogger("").setLevel(Level.INFO);
+            // 添加消息接收监听器
+            this.communicator.addSecsMessageReceiveListener(this::handleReceivedMessage);
 
-        // 添加消息接收监听器
-        this.mainCommunicator.addSecsMessageReceiveListener(this::handleReceivedMessage);
+            // 添加通信状态变化监听器
+            this.communicator.addSecsCommunicatableStateChangeListener(this::handleCommunicationStateChange);
 
-        // 添加通信状态变化监听器
-        this.mainCommunicator.addSecsCommunicatableStateChangeListener(this::handleCommunicationStateChange);
+            // 添加日志监听器
+            this.communicator.addSecsLogListener(log -> {
+                logger.info(log.toString());
 
-        // 添加日志监听器
-        this.mainCommunicator.addSecsLogListener(log -> {
-            String logMessage = log.toString();
-            logger.info(logMessage);
-
-            // 在日志中检测客户端连接事件
-            try {
+                // 在日志中检测客户端连接事件
+                String logMessage = log.toString();
                 if (logMessage.contains("Accepted") && logMessage.contains("SECS1-onTCP/IP-Communicator")) {
                     // 客户端连接事件
                     handleClientConnectionFromLog(logMessage, true);
@@ -189,10 +157,13 @@ public class Secs1TcpServerTest {
                     // 客户端断开连接事件
                     handleClientConnectionFromLog(logMessage, false);
                 }
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "处理日志事件失败: " + logMessage, e);
-            }
-        });
+            });
+        } catch (Exception e) {
+            // 如果创建扩展通信器失败，使用原始通信器
+            System.out.println("[DEBUG-INIT] 创建扩展通信器失败，使用原始通信器: " + e.getMessage());
+
+        }
+
 
     }
 
@@ -207,8 +178,8 @@ public class Secs1TcpServerTest {
         this.communicator.open();
         logger.info("SECS-I服务器已打开，等待连接...");
 
-        // 心跳线程暂时禁用
-        // startHeartbeatThread();
+        // 启动心跳线程
+        startHeartbeatThread();
 
         // 启动客户端信息打印线程
         startClientInfoThread();
@@ -221,23 +192,11 @@ public class Secs1TcpServerTest {
      */
     public void close() throws IOException {
         try {
-            // 心跳线程暂时禁用
-            // stopHeartbeatThread();
+            // 停止心跳线程
+            stopHeartbeatThread();
 
             // 停止客户端信息打印线程
             stopClientInfoThread();
-
-            // 关闭消息处理线程池
-            try {
-                // 尝试优雅关闭线程池
-                messageProcessorPool.shutdown();
-                if (!messageProcessorPool.awaitTermination(5, TimeUnit.SECONDS)) {
-                    // 如果超时，强制关闭
-                    messageProcessorPool.shutdownNow();
-                }
-            } catch (Exception e) {
-                logger.warning("关闭消息处理线程池失败: " + e.getMessage());
-            }
         } catch (InterruptedException e) {
             // 忽略中断异常
             logger.warning("停止线程时被中断");
@@ -253,116 +212,50 @@ public class Secs1TcpServerTest {
 
     /**
      * 处理接收到的消息
-     * 使用线程池处理消息，避免阻塞主线程
      *
      * @param message 接收到的SECS消息
      */
     private void handleReceivedMessage(SecsMessage message) {
-        // 使用线程池异步处理消息，避免阻塞主线程
-        messageProcessorPool.submit(() -> {
-            processReceivedMessage(message);
-        });
-    }
-
-    /**
-     * 处理接收到的消息的实际实现
-     *
-     * @param message 接收到的SECS消息
-     */
-    private void processReceivedMessage(SecsMessage message) {
         try {
             int stream = message.getStream();
             int function = message.getFunction();
             boolean wbit = message.wbit();
 
-            System.out.println("[DEBUG-PROCESS] 开始处理消息: S" + stream + "F" + function + (wbit ? " W" : ""));
-            System.out.println("[DEBUG-PROCESS] 当前客户端连接数: " + clientChannels.size());
-            System.out.println("[DEBUG-PROCESS] 当前客户端列表: " + clientChannels.keySet());
+            logger.info(String.format("收到消息: S%dF%d%s %s",
+                    stream, function, (wbit ? " W" : ""), message.secs2()));
 
-            // 获取消息的标识符，用于跟踪消息来源
-            // 注意：不同版本的secs4java8库可能有不同的API
-            String messageId = "" + System.currentTimeMillis();
-            try {
-                // 尝试获取消息的唯一标识符
-                messageId = message.toString();
-            } catch (Exception e) {
-                // 忽略异常，使用默认标识符
-            }
-
-            // 尝试获取消息的来源地址
-            SocketAddress sourceAddr = null;
-            try {
-                // 尝试使用反射获取消息的来源地址
-                java.lang.reflect.Field sourceAddrField = message.getClass().getDeclaredField("sourceAddr");
-                if (sourceAddrField != null) {
-                    sourceAddrField.setAccessible(true);
-                    sourceAddr = (SocketAddress) sourceAddrField.get(message);
-                    System.out.println("[DEBUG-PROCESS] 使用反射获取到消息来源地址: " + sourceAddr);
+            // 根据消息类型处理
+            switch (stream) {
+                case 1: {
+                    // Stream 1: 设备信息和通信
+                    handleStream1Message(message);
+                    break;
                 }
-            } catch (Exception e) {
-                System.out.println("[DEBUG-PROCESS] 使用反射获取消息来源地址失败: " + e.getMessage());
-            }
-
-            logger.info(String.format("收到消息: S%dF%d%s ID=%s %s",
-                    stream, function, (wbit ? " W" : ""), messageId, message.secs2()));
-
-            // 添加错误处理和恢复机制
-            try {
-                // 根据消息类型处理
-                switch (stream) {
-                    case 1: {
-                        // Stream 1: 设备信息和通信
-                        handleStream1Message(message);
-                        break;
-                    }
-                    case 2: {
-                        // Stream 2: 设备控制和状态
-                        handleStream2Message(message);
-                        break;
-                    }
-                    case 5: {
-                        // Stream 5: 异常和报警
-                        handleStream5Message(message);
-                        break;
-                    }
-                    case 6: {
-                        // Stream 6: 数据采集
-                        handleStream6Message(message);
-                        break;
-                    }
-                    default: {
-                        // 其他Stream
-                        if (wbit) {
-                            // 如果需要回复，发送通用的SxF0响应
-                            sendSxF0Response(message);
-                        }
-                    }
+                case 2: {
+                    // Stream 2: 设备控制和状态
+                    handleStream2Message(message);
+                    break;
                 }
-            } catch (Exception e) {
-                // 处理消息长度错误或其他错误
-                String errorMessage = e.getMessage();
-                if (e.getClass().getName().contains("Secs1IllegalLengthByteException") ||
-                    (errorMessage != null && errorMessage.contains("length"))) {
-                    logger.log(Level.WARNING, "消息长度错误，忽略此消息: " + errorMessage, e);
-                    // 不发送响应，因为消息格式错误
-                } else {
-                    logger.log(Level.WARNING, "处理消息失败: " + errorMessage, e);
-
-                    // 如果需要回复且发生错误，尝试发送错误响应
+                case 5: {
+                    // Stream 5: 异常和报警
+                    handleStream5Message(message);
+                    break;
+                }
+                case 6: {
+                    // Stream 6: 数据采集
+                    handleStream6Message(message);
+                    break;
+                }
+                default: {
+                    // 其他Stream
                     if (wbit) {
-                        try {
-                            // 发送SxF0错误响应
-                            this.communicator.send(message, stream, 0, false, Secs2.binary((byte)0x01));
-                            logger.info(String.format("发送S%dF0错误响应", stream));
-                        } catch (Exception ex) {
-                            logger.log(Level.WARNING, "发送错误响应失败", ex);
-                        }
+                        // 如果需要回复，发送通用的SxF0响应
+                        sendSxF0Response(message);
                     }
                 }
             }
         } catch (Exception e) {
-            // 捕获所有异常，确保消息处理失败不会影响服务器
-            logger.log(Level.SEVERE, "消息处理过程中发生严重错误", e);
+            logger.log(Level.WARNING, "处理接收消息时发生错误", e);
         }
     }
 
@@ -383,7 +276,30 @@ public class Secs1TcpServerTest {
                         Secs2.ascii("000001")     // 软件版本
                     );
 
-                    this.communicator.send(message, 1, 2, false, reply);
+                    // 获取消息的来源地址
+                    SocketAddress sourceAddr = null;
+                    try {
+                        // 尝试使用反射获取消息的来源地址
+                        java.lang.reflect.Field sourceAddrField = message.getClass().getDeclaredField("sourceAddr");
+                        if (sourceAddrField != null) {
+                            sourceAddrField.setAccessible(true);
+                            sourceAddr = (SocketAddress) sourceAddrField.get(message);
+                            System.out.println("[DEBUG-S1F1] 消息来源地址: " + sourceAddr);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[DEBUG-S1F1] 获取消息来源地址失败: " + e.getMessage());
+                    }
+
+                    if (sourceAddr != null) {
+                        // 如果有来源地址，使用sendMessageToClient方法向特定客户端发送消息
+                        System.out.println("[DEBUG-S1F1] 使用sendMessageToClient方法发送回复");
+                        sendMessageToClient(sourceAddr, 1, 2, reply);
+                    } else {
+                        // 如果没有来源地址，使用原始方式发送回复
+                        System.out.println("[DEBUG-S1F1] 使用原始方式发送回复");
+                        this.communicator.send(message, 1, 2, false, reply);
+                    }
+
                     logger.info("发送S1F2回复: " + reply);
                 }
                 break;
@@ -459,29 +375,12 @@ public class Secs1TcpServerTest {
                             System.out.println("[DEBUG-S1F3] 获取消息来源地址失败: " + e.getMessage());
                         }
 
-                        // 如果有来源地址，使用客户端的通信器发送回复
+                        // 如果有来源地址，使用sendMessageToClient方法向特定客户端发送消息
                         if (sourceAddr != null) {
-                            ClientInfo clientInfo = clientChannels.get(sourceAddr);
-                            if (clientInfo != null) {
-                                System.out.println("[DEBUG-S1F3] 找到客户端信息，客户端ID: " + clientInfo.getClientId());
-
-                                // 在消息中添加客户端ID作为标识
-                                Secs2 statusListWithClientId = Secs2.list(
-                                    Secs2.uint4(clientInfo.getClientId()), // 客户端ID作为标识
-                                    statusList                             // 原始状态列表
-                                );
-
-                                System.out.println("[DEBUG-S1F3] 添加客户端ID后的状态列表: " + statusListWithClientId);
-
-                                // 使用主通信器发送回复
-                                this.communicator.send(1, 4, false, statusListWithClientId);
-                                System.out.println("[DEBUG-S1F3] 回复发送成功");
-                            } else {
-                                System.out.println("[DEBUG-S1F3] 找不到客户端信息，使用原始回复");
-                                this.communicator.send(message, 1, 4, false, statusList);
-                            }
+                            System.out.println("[DEBUG-S1F3] 使用sendMessageToClient方法发送回复");
+                            sendMessageToClient(sourceAddr, 1, 4, statusList);
                         } else {
-                            System.out.println("[DEBUG-S1F3] 没有来源地址，使用原始回复");
+                            System.out.println("[DEBUG-S1F3] 使用原始方式发送回复");
                             this.communicator.send(message, 1, 4, false, statusList);
                         }
 
@@ -628,28 +527,6 @@ public class Secs1TcpServerTest {
         boolean wbit = message.wbit();
 
         switch (function) {
-            case 1: {
-                // S6F1 W - Trace Data Request
-                if (wbit) {
-                    logger.info("收到S6F1请求: 跟踪数据请求");
-
-                    // 创建一些示例跟踪数据
-                    Secs2 traceData = Secs2.list(
-                        Secs2.ascii("TRACE_DATA"),
-                        Secs2.uint4(System.currentTimeMillis() / 1000),
-                        Secs2.list(
-                            Secs2.uint4(1),
-                            Secs2.uint4(2),
-                            Secs2.uint4(3)
-                        )
-                    );
-
-                    // 回复S6F2 - Trace Data
-                    this.communicator.send(message, 6, 2, false, traceData);
-                    logger.info("发送S6F2回复: 跟踪数据");
-                }
-                break;
-            }
             case 11: {
                 // S6F11 W - Event Report Send
                 if (wbit) {
@@ -944,17 +821,13 @@ public class Secs1TcpServerTest {
         }
     }
 
-    // 线程池，用于处理客户端请求
-    private static final java.util.concurrent.ExecutorService messageProcessorPool =
-            java.util.concurrent.Executors.newFixedThreadPool(10);
-
     /**
      * 主方法，用于启动服务器
      */
     public static void main(String[] args) {
         try {
             // 创建SECS-I服务器
-            Secs1TcpServerTest server = new Secs1TcpServerTest();
+            Secs1TcpServerTest2 server = new Secs1TcpServerTest2();
 
             // 添加关闭钩子，确保程序退出时关闭连接
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -995,13 +868,12 @@ public class Secs1TcpServerTest {
                             } else if (command.equalsIgnoreCase("test")) {
                                 runTests(server);
                             } else if (command.equalsIgnoreCase("heartbeat")) {
-                                System.out.println("心跳功能已禁用");
-                                // try {
-                                //     server.sendHeartbeat();
-                                //     System.out.println("已手动发送心跳");
-                                // } catch (Exception e) {
-                                //     System.out.println("发送心跳失败: " + e.getMessage());
-                                // }
+                                try {
+                                    server.sendHeartbeat();
+                                    System.out.println("已手动发送心跳");
+                                } catch (Exception e) {
+                                    System.out.println("发送心跳失败: " + e.getMessage());
+                                }
                             } else if (command.startsWith("send ")) {
                                 try {
                                     String[] parts = command.split(" ", 5);
@@ -1064,7 +936,7 @@ public class Secs1TcpServerTest {
         System.out.println("  status   - 显示服务器状态");
         System.out.println("  clients  - 显示当前连接的客户端");
         System.out.println("  test     - 运行测试序列");
-        System.out.println("  heartbeat - [已禁用] 手动发送一次心跳");
+        System.out.println("  heartbeat - 手动发送一次心跳");
         System.out.println("  send <index> <stream> <function> <message> - 向指定客户端发送SECS消息");
         System.out.println("  exit     - 退出程序");
     }
@@ -1072,7 +944,7 @@ public class Secs1TcpServerTest {
     /**
      * 运行测试序列
      */
-    private static void runTests(Secs1TcpServerTest server) {
+    private static void runTests(Secs1TcpServerTest2 server) {
         System.out.println("\n开始运行测试序列...");
 
         try {
@@ -1122,36 +994,16 @@ public class Secs1TcpServerTest {
     private void handleClientConnectionFromLog(String logMessage, boolean isConnected) {
         try {
             // 从日志消息中提取客户端地址
-            // 日志格式示例: "{"state":"Accepted","local":"/127.0.0.1:5000","remote":"/127.0.0.1:51332"}"
-            // 或者: "SECS1-onTCP/IP-Communicator Accepted, local:/127.0.0.1:5000, remote:/127.0.0.1:49876"
-            String remoteAddrStr = null;
-
-            // 尝试解析JSON格式
-            if (logMessage.contains("{\"state\":") && logMessage.contains("\"remote\":")) {
-                int remoteStartIndex = logMessage.indexOf("\"remote\":") + 10; // "remote":" 长度为10
-                int remoteEndIndex = logMessage.indexOf("\"", remoteStartIndex);
-                if (remoteStartIndex > 0 && remoteEndIndex > remoteStartIndex) {
-                    remoteAddrStr = logMessage.substring(remoteStartIndex, remoteEndIndex);
+            // 日志格式示例: "SECS1-onTCP/IP-Communicator Accepted, local:/127.0.0.1:5000, remote:/127.0.0.1:49876"
+            int remoteIndex = logMessage.indexOf("remote:");
+            if (remoteIndex > 0) {
+                // 提取远程地址部分
+                String remoteAddrStr = logMessage.substring(remoteIndex + 7).trim();
+                // 如果有多余的内容，只取第一部分
+                if (remoteAddrStr.contains(" ")) {
+                    remoteAddrStr = remoteAddrStr.substring(0, remoteAddrStr.indexOf(" "));
                 }
-            }
-            // 尝试解析文本格式
-            else if (logMessage.contains("remote:")) {
-                int remoteIndex = logMessage.indexOf("remote:");
-                if (remoteIndex > 0) {
-                    // 提取远程地址部分
-                    remoteAddrStr = logMessage.substring(remoteIndex + 7).trim();
-                    // 如果有多余的内容，只取第一部分
-                    if (remoteAddrStr.contains(" ")) {
-                        remoteAddrStr = remoteAddrStr.substring(0, remoteAddrStr.indexOf(" "));
-                    }
-                    // 如果有结束的引号或花括号
-                    if (remoteAddrStr.contains("\"") || remoteAddrStr.contains("}")) {
-                        remoteAddrStr = remoteAddrStr.replaceAll("[\"{}]", "");
-                    }
-                }
-            }
 
-            if (remoteAddrStr != null) {
                 // 创建客户端地址对象
                 // 格式可能是类似于 "/127.0.0.1:49876"
                 if (remoteAddrStr.startsWith("/")) {
@@ -1166,29 +1018,57 @@ public class Secs1TcpServerTest {
                     InetSocketAddress clientAddr = new InetSocketAddress(ip, port);
 
                     if (isConnected) {
-                        // 客户端连接事件
-                        // 为新客户端创建一个客户端ID
-                        int clientId = clientIdCounter.getAndIncrement();
+                        // 客户端连接事件 - 使用扩展通信器的功能
+                        System.out.println("[DEBUG-CONNECTION] 客户端连接事件: " + clientAddr);
 
-                        // 不再尝试为每个客户端创建单独的通信器
-                        // 而是使用主通信器，并在客户端信息中记录客户端地址
-                        System.out.println("[DEBUG-CONNECTION] 为客户端 " + clientAddr + " 创建客户端信息");
+                        // 尝试获取客户端通道
+                        AsynchronousSocketChannel clientChannel = null;
+                        try {
+                            // 如果有扩展通信器，使用它的功能获取客户端通道
+                            if (mainCommunicator != null) {
+                                clientChannel = mainCommunicator.getClientChannel(clientAddr);
+                                System.out.println("[DEBUG-CONNECTION] 获取到客户端通道: " + clientChannel);
+                            } else {
+                                System.out.println("[DEBUG-CONNECTION] 扩展通信器不可用，将使用反射获取客户端通道");
+                            }
+                        } catch (Exception e) {
+                            System.out.println("[DEBUG-CONNECTION] 使用扩展通信器获取客户端通道失败: " + e.getMessage());
 
-                        // 创建客户端信息，使用主通信器
-                        ClientInfo clientInfo = new ClientInfo(clientAddr, this.communicator, clientId);
+                            // 如果使用扩展通信器失败，尝试使用反射
+                            try {
+                                // 这里我们使用反射来获取客户端通道
+                                Field channelsField = this.communicator.getClass().getDeclaredField("channels");
+                                channelsField.setAccessible(true);
+                                @SuppressWarnings("unchecked")
+                                List<AsynchronousSocketChannel> channels = (List<AsynchronousSocketChannel>) channelsField.get(this.communicator);
+                                if (channels != null) {
+                                    // 尝试找到匹配的客户端通道
+                                    for (AsynchronousSocketChannel channel : channels) {
+                                        try {
+                                            SocketAddress remoteAddr = channel.getRemoteAddress();
+                                            if (clientAddr.equals(remoteAddr)) {
+                                                clientChannel = channel;
+                                                System.out.println("[DEBUG-CONNECTION] 使用反射获取到客户端通道: " + clientChannel);
+                                                break;
+                                            }
+                                        } catch (Exception ex) {
+                                            // 忽略异常，继续检查下一个通道
+                                        }
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                logger.log(Level.WARNING, "获取客户端通道失败", ex);
+                            }
+                        }
+
+                        // 存储客户端信息
+                        ClientInfo clientInfo = new ClientInfo(clientAddr, clientChannel, this.communicator);
                         clientChannels.put(clientAddr, clientInfo);
-
-                        System.out.println("[DEBUG-CONNECTION] 客户端信息创建成功，当前客户端数: " + clientChannels.size());
-                        System.out.println("[DEBUG-CONNECTION] 当前客户端列表: " + clientChannels.keySet());
-
-                        logger.info(String.format("新客户端连接: ID=%d, 地址=%s, 当前连接数: %d",
-                                clientId, clientAddr, clientChannels.size()));
+                        logger.info("新客户端连接: " + clientAddr + ", 当前连接数: " + clientChannels.size());
                     } else {
                         // 客户端断开连接事件
-                        ClientInfo removedClient = clientChannels.remove(clientAddr);
-                        if (removedClient != null) {
-                            logger.info(String.format("客户端断开连接: ID=%d, 地址=%s, 当前连接数: %d",
-                                    removedClient.getClientId(), clientAddr, clientChannels.size()));
+                        if (clientChannels.remove(clientAddr) != null) {
+                            logger.info("客户端断开连接: " + clientAddr + ", 当前连接数: " + clientChannels.size());
                         }
                     }
                 }
@@ -1330,9 +1210,6 @@ public class Secs1TcpServerTest {
      * 打印当前客户端信息
      */
     public void printClientInfo() {
-        // 先清理已断开的连接
-        cleanupDisconnectedClients();
-
         int count = clientChannels.size();
         if (count > 0) {
             System.out.println("当前连接的客户端数: " + count);
@@ -1343,8 +1220,8 @@ public class Secs1TcpServerTest {
                 SecsCommunicator comm = clientInfo.getCommunicator();
                 boolean isConnected = comm != null && !comm.isClosed();
 
-                System.out.println(String.format("  [%d] ID=%d, 地址=%s, 连接时间=%s (状态: %s)",
-                        index++, clientInfo.getClientId(), addr, clientInfo.getConnectTimeString(), isConnected ? "连接中" : "已断开"));
+                System.out.println(String.format("  [%d] %s (状态: %s)",
+                        index++, addr, isConnected ? "连接中" : "已断开"));
             }
         } else {
             System.out.println("当前没有客户端连接");
@@ -1409,6 +1286,12 @@ public class Secs1TcpServerTest {
             // 检查通信器是否已关闭
             if (info.getCommunicator() != null && info.getCommunicator().isClosed()) {
                 disconnectedClients.add(addr);
+                continue;
+            }
+
+            // 检查通道是否已关闭
+            if (info.getChannel() != null && !info.getChannel().isOpen()) {
+                disconnectedClients.add(addr);
             }
         }
 
@@ -1449,32 +1332,68 @@ public class Secs1TcpServerTest {
         logger.info(String.format("向客户端 [%d] %s 发送消息: S%dF%d %s",
                 index, clientAddr, stream, function, messageText));
 
+        // 使用扩展通信器向特定客户端发送消息
+        System.out.println("[DEBUG-SEND] 尝试向客户端发送消息: " + clientAddr);
+        System.out.println("[DEBUG-SEND] 消息类型: S" + stream + "F" + function);
+        System.out.println("[DEBUG-SEND] 消息数据: " + data);
+
         try {
-            // 记录当前的目标客户端地址
+            // 如果有扩展通信器，使用它向特定客户端发送消息
+            if (this.mainCommunicator != null) {
+                this.mainCommunicator.sendToClient(clientAddr, stream, function, false, data);
+            } else {
+                // 如果没有扩展通信器，使用原始通信器发送消息
+                System.out.println("[DEBUG-SEND] 扩展通信器不可用，使用原始通信器发送消息");
+                this.communicator.send(stream, function, false, data);
+            }
+            System.out.println("[DEBUG-SEND] 消息发送成功");
+            return true;
+        } catch (Exception e) {
+            System.out.println("[DEBUG-SEND] 发送消息失败: " + e.getMessage());
+            e.printStackTrace(System.out);
+            throw e;
+        }
+    }
+
+    /**
+     * 向特定客户端发送消息
+     *
+     * @param clientAddr 客户端地址
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param data 消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessageToClient(SocketAddress clientAddr, int stream, int function, Secs2 data) {
+        // 获取客户端信息
+        ClientInfo clientInfo = clientChannels.get(clientAddr);
+        if (clientInfo == null) {
+            logger.warning("客户端不存在: " + clientAddr);
+            return false;
+        }
+
+        try {
             System.out.println("[DEBUG-SEND] 尝试向客户端发送消息: " + clientAddr);
             System.out.println("[DEBUG-SEND] 消息类型: S" + stream + "F" + function);
             System.out.println("[DEBUG-SEND] 消息数据: " + data);
 
-            // 记录当前的客户端地址，以便于在消息接收器中识别
-            // 这里我们使用一个特殊的标记来识别目标客户端
-            // 在消息中添加客户端的ID作为标识
-            Secs2 dataWithClientId = Secs2.list(
-                Secs2.uint4(clientInfo.getClientId()), // 客户端ID作为标识
-                data                                  // 原始消息数据
-            );
+            // 如果有扩展通信器，使用它向特定客户端发送消息
+            if (this.mainCommunicator != null) {
+                this.mainCommunicator.sendToClient(clientAddr, stream, function, false, data);
+            } else {
+                // 如果没有扩展通信器，使用原始通信器发送消息
+                System.out.println("[DEBUG-SEND] 扩展通信器不可用，使用原始通信器发送消息");
+                this.communicator.send(stream, function, false, data);
+            }
 
-            System.out.println("[DEBUG-SEND] 添加客户端ID后的消息数据: " + dataWithClientId);
-
-            // 使用主通信器发送消息
-            this.communicator.send(stream, function, false, dataWithClientId);
             System.out.println("[DEBUG-SEND] 消息发送成功");
+            logger.info("向客户端 " + clientAddr + " 发送消息成功: S" + stream + "F" + function);
+            return true;
         } catch (Exception e) {
             System.out.println("[DEBUG-SEND] 发送消息失败: " + e.getMessage());
             e.printStackTrace(System.out);
             logger.log(Level.WARNING, "向客户端发送消息失败: " + e.getMessage(), e);
             return false;
         }
-
-        return true;
     }
 }
