@@ -1,0 +1,688 @@
+package com.shimizukenta.secs.secs1ontcpip.impl;
+
+import com.shimizukenta.secs.SecsCommunicatableStateChangeBiListener;
+import com.shimizukenta.secs.SecsException;
+import com.shimizukenta.secs.SecsLogListener;
+import com.shimizukenta.secs.SecsMessage;
+import com.shimizukenta.secs.SecsSendMessageException;
+import com.shimizukenta.secs.secs1.Secs1Message;
+import com.shimizukenta.secs.secs1.Secs1MessageReceiveListener;
+import com.shimizukenta.secs.secs1.Secs1SendByteException;
+import com.shimizukenta.secs.secs1.Secs1SendMessageRejectException;
+import com.shimizukenta.secs.secs1.Secs1WaitReplyMessageException;
+import com.shimizukenta.secs.secs1.impl.AbstractSecs1Communicator;
+import com.shimizukenta.secs.secs1.impl.AbstractSecs1Message;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpChannelConnectionLog;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpCommunicator;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpCommunicatorConfig;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpLogObservable;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicator;
+import com.shimizukenta.secs.secs2.Secs2;
+import com.shimizukenta.secs.secs2.Secs2Exception;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.net.StandardSocketOptions;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousCloseException;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * 重新实现的SECS-I多客户端TCP服务器
+ * 
+ * 这个类提供了一个完整的SECS-I协议的TCP服务器实现，
+ * 能够处理多个客户端连接，并正确关联消息源地址。
+ */
+public class Secs1MultiClientTcpServer extends AbstractSecs1Communicator implements Secs1OnTcpIpReceiverCommunicator {
+
+    private static final Logger logger = Logger.getLogger(Secs1MultiClientTcpServer.class.getName());
+    
+    private final Secs1OnTcpIpCommunicatorConfig config;
+    private final AsynchronousChannelGroup group;
+    private final AsynchronousServerSocketChannel serverChannel;
+    private final Map<SocketAddress, ClientConnection> clientConnections = new ConcurrentHashMap<>();
+    private final Map<Integer, MessageInfo> pendingMessages = new ConcurrentHashMap<>();
+    private final List<Secs1MessageReceiveListener> messageReceiveListeners = new ArrayList<>();
+    private final ExecutorService messageProcessingExecutor;
+    private final ScheduledExecutorService scheduledExecutor;
+    
+    // 日志监听器
+    private final Collection<SecsLogListener<? super Secs1OnTcpIpChannelConnectionLog>> channelConnectionLogListeners = Collections.synchronizedCollection(new ArrayList<>());
+    
+    // 存储当前处理的消息源
+    private final ThreadLocal<SocketAddress> currentMessageSource = new ThreadLocal<>();
+    
+    /**
+     * 客户端连接信息类
+     */
+    private static class ClientConnection {
+        private final AsynchronousSocketChannel channel;
+        private final SocketAddress address;
+        private final long connectionTime;
+        private volatile boolean active;
+        
+        public ClientConnection(AsynchronousSocketChannel channel, SocketAddress address) {
+            this.channel = channel;
+            this.address = address;
+            this.connectionTime = System.currentTimeMillis();
+            this.active = true;
+        }
+        
+        public AsynchronousSocketChannel getChannel() {
+            return channel;
+        }
+        
+        public SocketAddress getAddress() {
+            return address;
+        }
+        
+        public long getConnectionTime() {
+            return connectionTime;
+        }
+        
+        public boolean isActive() {
+            return active;
+        }
+        
+        public void setActive(boolean active) {
+            this.active = active;
+        }
+    }
+    
+    /**
+     * 消息信息类，用于跟踪消息和回复
+     */
+    private static class MessageInfo {
+        private final SecsMessage message;
+        private final SocketAddress sourceAddress;
+        private final long creationTime;
+        
+        public MessageInfo(SecsMessage message, SocketAddress sourceAddress) {
+            this.message = message;
+            this.sourceAddress = sourceAddress;
+            this.creationTime = System.currentTimeMillis();
+        }
+        
+        public SecsMessage getMessage() {
+            return message;
+        }
+        
+        public SocketAddress getSourceAddress() {
+            return sourceAddress;
+        }
+        
+        public long getCreationTime() {
+            return creationTime;
+        }
+    }
+    
+    /**
+     * 构造函数
+     * 
+     * @param config 服务器配置
+     * @throws IOException 如果创建通道组失败
+     */
+    public Secs1MultiClientTcpServer(Secs1OnTcpIpCommunicatorConfig config) throws IOException {
+        super();
+        
+        this.config = Objects.requireNonNull(config);
+        
+        // 创建通道组和线程池
+        this.group = AsynchronousChannelGroup.withThreadPool(
+                Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()));
+        
+        // 创建服务器通道
+        this.serverChannel = AsynchronousServerSocketChannel.open(this.group);
+        
+        // 创建消息处理线程池
+        this.messageProcessingExecutor = Executors.newCachedThreadPool();
+        this.scheduledExecutor = Executors.newScheduledThreadPool(1);
+        
+        // 添加默认监听器
+        addDefaultListeners();
+    }
+    
+    /**
+     * 添加默认的消息监听器
+     */
+    private void addDefaultListeners() {
+        addSecs1MessageReceiveListener(message -> {
+            // 从ThreadLocal获取源地址
+            SocketAddress sourceAddr = currentMessageSource.get();
+            if (sourceAddr != null && message instanceof AbstractSecs1Message) {
+                // 设置消息源地址
+                ((AbstractSecs1Message)message).setSourceAddress(sourceAddr);
+                logger.fine("Message source address set: " + sourceAddr);
+            }
+        });
+    }
+    
+    @Override
+    public void open() throws IOException {
+        if (isOpen()) {
+            return;
+        }
+        
+        // 配置服务器套接字
+        this.serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+        
+        // 绑定到配置的地址
+        InetSocketAddress bindAddr = new InetSocketAddress(
+                config.isBindIpAddressPresent() ? config.bindIpAddress().get() : "0.0.0.0",
+                config.isTcpPortPresent() ? config.tcpPort().get() : 0);
+        
+        this.serverChannel.bind(bindAddr);
+        
+        // 记录绑定的地址
+        InetSocketAddress localAddr = (InetSocketAddress)this.serverChannel.getLocalAddress();
+        logger.info("Server bound to " + localAddr.getHostString() + ":" + localAddr.getPort());
+        
+        // 开始接受连接
+        startAcceptingConnections();
+        
+        // 启动清理过期消息的定时任务
+        startMessageCleanupTask();
+        
+        // 标记为打开状态
+        super.open();
+        
+        // 通知状态变化
+        notifyCommunicatableStateChange(true);
+    }
+    
+    @Override
+    public void close() throws IOException {
+        if (!isOpen()) {
+            return;
+        }
+        
+        // 关闭所有客户端连接
+        for (ClientConnection conn : new ArrayList<>(clientConnections.values())) {
+            try {
+                conn.getChannel().close();
+            } catch (IOException e) {
+                logger.log(Level.WARNING, "Error closing client connection", e);
+            }
+        }
+        clientConnections.clear();
+        
+        // 关闭服务器通道
+        serverChannel.close();
+        
+        // 关闭线程池
+        messageProcessingExecutor.shutdown();
+        try {
+            if (!messageProcessingExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                messageProcessingExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            messageProcessingExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        
+        // 关闭通道组
+        group.shutdown();
+        
+        // 关闭调度线程池
+        scheduledExecutor.shutdown();
+        try {
+            if (!scheduledExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduledExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduledExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        
+        // 标记为关闭状态
+        super.close();
+        
+        // 通知状态变化
+        notifyCommunicatableStateChange(false);
+    }
+    
+    /**
+     * 开始接受客户端连接
+     */
+    private void startAcceptingConnections() {
+        if (!serverChannel.isOpen()) {
+            return;
+        }
+        
+        serverChannel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
+            @Override
+            public void completed(AsynchronousSocketChannel channel, Void attachment) {
+                // 获取客户端地址
+                SocketAddress clientAddress = null;
+                try {
+                    clientAddress = channel.getRemoteAddress();
+                    
+                    // 配置套接字选项
+                    channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+                    channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+                    
+                    // 创建并保存客户端连接
+                    ClientConnection clientConn = new ClientConnection(channel, clientAddress);
+                    clientConnections.put(clientAddress, clientConn);
+                    
+                    logger.info("Client connected: " + clientAddress);
+                    
+                    // 通知通道连接日志监听器
+                    notifyChannelConnectionLogListeners(new Secs1OnTcpIpChannelConnectionLog(clientAddress, true));
+                    
+                    // 开始从客户端读取数据
+                    startReading(clientConn);
+                    
+                } catch (IOException e) {
+                    logger.log(Level.WARNING, "Error handling client connection", e);
+                    if (clientAddress != null) {
+                        clientConnections.remove(clientAddress);
+                    }
+                    try {
+                        channel.close();
+                    } catch (IOException closeEx) {
+                        logger.log(Level.WARNING, "Error closing client channel", closeEx);
+                    }
+                }
+                
+                // 继续接受下一个连接
+                serverChannel.accept(null, this);
+            }
+            
+            @Override
+            public void failed(Throwable exc, Void attachment) {
+                if (!(exc instanceof AsynchronousCloseException)) {
+                    logger.log(Level.SEVERE, "Error accepting client connection", exc);
+                }
+            }
+        });
+    }
+    
+    /**
+     * 开始从客户端读取数据
+     */
+    private void startReading(ClientConnection clientConn) {
+        AsynchronousSocketChannel channel = clientConn.getChannel();
+        SocketAddress clientAddress = clientConn.getAddress();
+        
+        if (!channel.isOpen()) {
+            handleClientDisconnect(clientConn);
+            return;
+        }
+        
+        ByteBuffer buffer = ByteBuffer.allocate(4096);
+        
+        channel.read(buffer, clientConn, new CompletionHandler<Integer, ClientConnection>() {
+            @Override
+            public void completed(Integer bytesRead, ClientConnection attachment) {
+                if (bytesRead > 0) {
+                    // 收到数据
+                    ((Buffer)buffer).flip();
+                    byte[] data = new byte[buffer.remaining()];
+                    buffer.get(data);
+                    
+                    // 处理接收到的数据
+                    messageProcessingExecutor.execute(() -> {
+                        try {
+                            processReceivedData(data, clientAddress);
+                        } catch (Exception e) {
+                            logger.log(Level.WARNING, "Error processing data from " + clientAddress, e);
+                        }
+                    });
+                    
+                    // 继续读取
+                    if (channel.isOpen()) {
+                        ((Buffer)buffer).clear();
+                        channel.read(buffer, attachment, this);
+                    }
+                } else {
+                    // 客户端断开连接
+                    handleClientDisconnect(attachment);
+                }
+            }
+            
+            @Override
+            public void failed(Throwable exc, ClientConnection attachment) {
+                if (!(exc instanceof AsynchronousCloseException)) {
+                    logger.log(Level.WARNING, "Read error from " + clientAddress, exc);
+                }
+                
+                handleClientDisconnect(attachment);
+            }
+        });
+    }
+    
+    /**
+     * 处理接收到的数据
+     */
+    private void processReceivedData(byte[] data, SocketAddress sourceAddr) {
+        try {
+            // 设置当前线程的消息源地址
+            currentMessageSource.set(sourceAddr);
+            
+            // 调用父类的方法处理字节数据
+            super.putBytes(data);
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.log(Level.WARNING, "Interrupted while processing data", e);
+        } finally {
+            // 清除线程本地变量
+            currentMessageSource.remove();
+        }
+    }
+    
+    /**
+     * 处理客户端断开连接
+     */
+    private void handleClientDisconnect(ClientConnection clientConn) {
+        SocketAddress clientAddress = clientConn.getAddress();
+        
+        // 从客户端连接映射中移除
+        clientConnections.remove(clientAddress);
+        
+        // 关闭通道
+        try {
+            clientConn.getChannel().close();
+        } catch (IOException ignore) {
+        }
+        
+        logger.info("Client disconnected: " + clientAddress);
+        
+        // 通知通道连接日志监听器
+        notifyChannelConnectionLogListeners(new Secs1OnTcpIpChannelConnectionLog(clientAddress, false));
+    }
+    
+    /**
+     * 启动消息清理任务
+     */
+    private void startMessageCleanupTask() {
+        scheduledExecutor.scheduleAtFixedRate(() -> {
+            // 清理过期的消息
+            long now = System.currentTimeMillis();
+            long timeoutMillis = TimeUnit.SECONDS.toMillis(config.timeout().t3().get().getSeconds());
+            
+            pendingMessages.entrySet().removeIf(entry -> {
+                MessageInfo info = entry.getValue();
+                return (now - info.getCreationTime()) > timeoutMillis;
+            });
+        }, 0, 1, TimeUnit.SECONDS);
+    }
+    
+    @Override
+    public void addSecsCommunicatableStateChangeBiListener(SecsCommunicatableStateChangeBiListener listener) {
+        super.addSecsCommunicatableStateChangeBiListener(listener);
+    }
+    
+    @Override
+    public boolean removeSecsCommunicatableStateChangeBiListener(SecsCommunicatableStateChangeBiListener listener) {
+        return super.removeSecsCommunicatableStateChangeBiListener(listener);
+    }
+    
+    @Override
+    public void addSecs1MessageReceiveListener(Secs1MessageReceiveListener listener) {
+        synchronized (messageReceiveListeners) {
+            messageReceiveListeners.add(listener);
+        }
+    }
+    
+    @Override
+    public boolean removeSecs1MessageReceiveListener(Secs1MessageReceiveListener listener) {
+        synchronized (messageReceiveListeners) {
+            return messageReceiveListeners.remove(listener);
+        }
+    }
+    
+    /**
+     * 处理接收到的消息
+     */
+    @Override
+    protected void received(Secs1Message message) {
+        super.received(message);
+        
+        // 获取消息源地址
+        SocketAddress sourceAddr = null;
+        if (message instanceof AbstractSecs1Message) {
+            sourceAddr = ((AbstractSecs1Message)message).getSourceAddress();
+        }
+        
+        // 记录收到的消息
+        logger.info("Received message from " + (sourceAddr != null ? sourceAddr : "unknown") + 
+                    ", S" + message.getStream() + "F" + message.getFunction());
+        
+        // 通知所有监听器
+        notifyMessageReceived(message);
+    }
+    
+    /**
+     * 通知所有监听器收到了消息
+     */
+    private void notifyMessageReceived(Secs1Message message) {
+        synchronized (messageReceiveListeners) {
+            for (Secs1MessageReceiveListener listener : messageReceiveListeners) {
+                try {
+                    listener.received(message);
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Error in message receive listener", e);
+                }
+            }
+        }
+    }
+    
+    @Override
+    public Optional<SecsMessage> send(int strm, int func, boolean wbit, Secs2 secs2)
+            throws SecsSendMessageException, Secs2Exception, InterruptedException {
+        
+        // 广播消息给所有客户端
+        return super.send(strm, func, wbit, secs2);
+    }
+    
+    @Override
+    public Optional<SecsMessage> send(SecsMessage primaryMsg, int strm, int func, boolean wbit, Secs2 secs2)
+            throws SecsSendMessageException, Secs2Exception, InterruptedException {
+        
+        // 广播消息给所有客户端
+        return super.send(primaryMsg, strm, func, wbit, secs2);
+    }
+    
+    /**
+     * 重写方法发送数据到所有客户端
+     */
+    @Override
+    protected void sendBytes(byte[] data) throws Secs1SendByteException, InterruptedException {
+        if (clientConnections.isEmpty()) {
+            throw new Secs1SendByteException("No clients connected");
+        }
+        
+        boolean sentToAny = false;
+        List<Exception> exceptions = new ArrayList<>();
+        
+        for (ClientConnection conn : clientConnections.values()) {
+            try {
+                if (conn.isActive()) {
+                    sendBytesToClient(data, conn);
+                    sentToAny = true;
+                }
+            } catch (Exception e) {
+                exceptions.add(e);
+                logger.log(Level.WARNING, "Failed to send to client " + conn.getAddress(), e);
+            }
+        }
+        
+        if (!sentToAny) {
+            Secs1SendByteException ex = new Secs1SendByteException("Failed to send to any client");
+            exceptions.forEach(ex::addSuppressed);
+            throw ex;
+        }
+    }
+    
+    /**
+     * 发送字节数据到特定客户端
+     */
+    private void sendBytesToClient(byte[] data, ClientConnection clientConn) throws IOException, InterruptedException {
+        AsynchronousSocketChannel channel = clientConn.getChannel();
+        if (!channel.isOpen()) {
+            throw new IOException("Client channel closed");
+        }
+        
+        ByteBuffer buffer = ByteBuffer.wrap(data);
+        
+        try {
+            // 使用Future同步发送数据
+            int totalWritten = 0;
+            while (totalWritten < data.length) {
+                int written = channel.write(buffer).get(config.timeout().getSeconds(), TimeUnit.SECONDS);
+                if (written <= 0) {
+                    throw new IOException("Failed to write to client channel");
+                }
+                totalWritten += written;
+            }
+        } catch (TimeoutException e) {
+            throw new IOException("Timeout sending data to client", e);
+        } catch (Exception e) {
+            if (e instanceof IOException) {
+                throw (IOException) e;
+            } else {
+                throw new IOException("Error sending data to client", e);
+            }
+        }
+    }
+    
+    /**
+     * 发送消息到特定客户端
+     */
+    public Optional<SecsMessage> sendToClient(SecsMessage message, SocketAddress clientAddress) 
+            throws SecsSendMessageException, InterruptedException {
+        
+        Objects.requireNonNull(message, "Message cannot be null");
+        Objects.requireNonNull(clientAddress, "Client address cannot be null");
+        
+        ClientConnection conn = clientConnections.get(clientAddress);
+        if (conn == null || !conn.isActive()) {
+            throw new SecsSendMessageException("Client not connected: " + clientAddress);
+        }
+        
+        try {
+            // 提取消息数据
+            byte[] headerBytes = message.header10Bytes();
+            byte[] bodyBytes = null;
+            
+            if (message.secs2() != null && !message.secs2().isEmpty()) {
+                bodyBytes = message.secs2().getBytes();
+            }
+            
+            // 发送消息头
+            sendBytesToClient(headerBytes, conn);
+            
+            // 发送消息体
+            if (bodyBytes != null && bodyBytes.length > 0) {
+                sendBytesToClient(bodyBytes, conn);
+            }
+            
+            logger.fine("Sent message to client: " + clientAddress + 
+                       ", S" + message.getStream() + "F" + message.getFunction());
+            
+            // 如果是等待回复的消息，添加到挂起的消息中
+            if (message.wbit()) {
+                MessageInfo info = new MessageInfo(message, clientAddress);
+                pendingMessages.put(message.getSystemBytes(), info);
+                
+                // 异步移除超时消息
+                scheduledExecutor.schedule(() -> {
+                    pendingMessages.remove(message.getSystemBytes());
+                }, config.timeout().t3().get().getSeconds(), TimeUnit.SECONDS);
+                
+                // 等待回复
+                try {
+                    return Optional.of(waitReplyMessage(message.getSystemBytes()));
+                } catch (Secs1WaitReplyMessageException e) {
+                    throw new SecsSendMessageException(e);
+                }
+            }
+            
+            return Optional.empty();
+            
+        } catch (IOException | Secs1SendMessageRejectException | Secs2Exception e) {
+            throw new SecsSendMessageException(e);
+        }
+    }
+    
+    /**
+     * 创建回复消息
+     */
+    public SecsMessage createReplyMessage(SecsMessage primaryMsg, int strm, int func, boolean wbit, Secs2 secs2) 
+            throws Secs2Exception {
+        
+        return super.createReplyMessage(primaryMsg, strm, func, wbit, secs2);
+    }
+    
+    /**
+     * 获取所有连接的客户端地址
+     */
+    public Set<SocketAddress> getConnectedClients() {
+        return Collections.unmodifiableSet(clientConnections.keySet());
+    }
+    
+    /**
+     * 检查客户端是否已连接
+     */
+    public boolean isClientConnected(SocketAddress clientAddress) {
+        ClientConnection conn = clientConnections.get(clientAddress);
+        return conn != null && conn.isActive();
+    }
+    
+    @Override
+    protected Collection<Thread> getTimeoutCheckThreads() {
+        return Collections.emptyList();
+    }
+    
+    /**
+     * 添加通道连接日志监听器
+     */
+    @Override
+    public boolean addSecs1OnTcpIpChannelConnectionLogListener(SecsLogListener<? super Secs1OnTcpIpChannelConnectionLog> listener) {
+        return channelConnectionLogListeners.add(listener);
+    }
+    
+    /**
+     * 移除通道连接日志监听器
+     */
+    @Override
+    public boolean removeSecs1OnTcpIpChannelConnectionLogListener(SecsLogListener<? super Secs1OnTcpIpChannelConnectionLog> listener) {
+        return channelConnectionLogListeners.remove(listener);
+    }
+    
+    /**
+     * 通知通道连接日志监听器
+     */
+    private void notifyChannelConnectionLogListeners(Secs1OnTcpIpChannelConnectionLog log) {
+        for (SecsLogListener<? super Secs1OnTcpIpChannelConnectionLog> listener : channelConnectionLogListeners) {
+            try {
+                listener.log(log);
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Error in channel connection log listener", e);
+            }
+        }
+    }
+}

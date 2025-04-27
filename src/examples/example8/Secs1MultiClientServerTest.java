@@ -1,0 +1,564 @@
+/*
+package example8;
+
+import com.shimizukenta.secs.SecsException;
+import com.shimizukenta.secs.SecsMessage;
+import com.shimizukenta.secs.SecsSendMessageException;
+import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
+import com.shimizukenta.secs.secs1ontcpip.impl.Secs1MultiClientTcpServer;
+import com.shimizukenta.secs.secs2.Secs2;
+import com.shimizukenta.secs.secs2.Secs2Exception;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+*/
+/**
+ * SECS-I Multi-Client TCP Server Test
+ *
+ * This class demonstrates how to use Secs1MultiClientTcpServer to create a SECS-I TCP server
+ * that supports multiple client connections and handles SECS-I messages from each client.
+ *
+ * Main features:
+ * 1. Create and configure a multi-client SECS-I TCP server
+ * 2. Receive and process SECS messages from multiple clients
+ * 3. Send responses and requests to specific clients
+ *//*
+
+public class Secs1MultiClientServerTest {
+
+    private static final Logger logger = Logger.getLogger(Secs1MultiClientServerTest.class.getName());
+
+    // Configuration parameters
+    private static final String SERVER_IP = "127.0.0.1";  // Server IP address
+    private static final int SERVER_PORT = 5000;          // Server port
+    private static final int DEVICE_ID = 0;               // Device ID
+    private static final boolean IS_EQUIP = false;        // Is equipment
+    private static final int TIMEOUT_SECONDS = 10;        // Timeout (seconds)
+    private static final int HEARTBEAT_INTERVAL_SECONDS = 30; // Heartbeat interval (seconds)
+    private static final int CLIENT_INFO_INTERVAL_SECONDS = 10; // Client info printing interval (seconds)
+
+    // Threads
+    private Thread heartbeatThread;
+    private Thread clientInfoThread;
+
+    // Multi-client SECS-I TCP server
+    private final Secs1MultiClientTcpServer server;
+
+    // Client message tracking - used to track message status for each client
+    private final Map<SocketAddress, ClientMessageState> clientMessageStates = new ConcurrentHashMap<>();
+
+    */
+/**
+     * Client message state class, tracks message activity for each client
+     *//*
+
+    private static class ClientMessageState {
+        private final SocketAddress address;
+        private int messageCount = 0;
+        private long lastMessageTime = 0;
+
+        public ClientMessageState(SocketAddress address) {
+            this.address = address;
+        }
+
+        public void recordMessage() {
+            messageCount++;
+            lastMessageTime = System.currentTimeMillis();
+        }
+
+        public int getMessageCount() {
+            return messageCount;
+        }
+
+        // Define a public method to get the last message time
+        public long getLastMessageTime() {
+            // Return the value of the lastMessageTime member variable, which represents the timestamp of the last message
+            return lastMessageTime;
+        }
+
+        public String getLastMessageTimeString() {
+            if (lastMessageTime == 0) {
+                return "No messages";
+            }
+            return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(lastMessageTime));
+        }
+    }
+
+    */
+/**
+     * Constructor
+     *
+     * @throws IOException if server creation fails
+     *//*
+
+    public Secs1MultiClientServerTest() throws IOException {
+        // Create SECS-I receiver configuration
+        Secs1OnTcpIpReceiverCommunicatorConfig config = new Secs1OnTcpIpReceiverCommunicatorConfig();
+
+        // Set server address and port
+        config.socketAddress(new InetSocketAddress(SERVER_IP, SERVER_PORT));
+
+        // Set device ID
+        config.deviceId(DEVICE_ID);
+
+        // Set as passive (not master)
+        config.isMaster(false);
+
+        // Set as host side
+        config.isEquip(IS_EQUIP);
+
+        // Set timeout parameters - optimized for multi-client scenario
+        config.timeout().t1(1.0F);     // ENQ timeout - reduced for faster response
+        config.timeout().t2(45.0F);    // Reply timeout - increased to handle multiple clients
+        config.timeout().t3(90.0F);    // Send timeout - increased to handle large messages
+        config.timeout().t4(90.0F);    // Intermediate response timeout - increased for complex responses
+
+        // Set retry count
+        config.retry(3);
+
+        // Create multi-client SECS-I TCP server
+        server = Secs1MultiClientTcpServer.newInstance(config);
+
+        // Set log level
+        Logger.getLogger("").setLevel(Level.INFO);
+
+        // Add message receive listener
+        server.addSecsMessageReceiveListener(this::handleReceivedMessage);
+
+        // Add communication state change listener
+        server.addSecsCommunicatableStateChangeListener(this::handleCommunicationStateChange);
+
+        // Add log listener to track client connections and disconnections
+        server.addSecsLogListener(log -> {
+            String logMessage = log.toString();
+            logger.info(logMessage);
+
+            // Detect client connection events
+            if (logMessage.contains("Accepted") && logMessage.contains("SECS1-onTCP/IP")) {
+                // Try to extract client address information from log
+                parseClientAddressFromLog(logMessage, true);
+            } else if (logMessage.contains("AcceptClosed") && logMessage.contains("SECS1-onTCP/IP")) {
+                // Detect client disconnection
+                parseClientAddressFromLog(logMessage, false);
+            }
+        });
+    }
+
+    */
+/**
+     * Parse client address information from log
+     *//*
+
+    private void parseClientAddressFromLog(String logMessage, boolean isConnected) {
+        try {
+            // Try to extract client address from log
+            // Example: may need to adjust based on actual log format
+            int remoteIndex = logMessage.indexOf("remote:");
+            if (remoteIndex >= 0) {
+                String addressPart = logMessage.substring(remoteIndex);
+                int endIndex = addressPart.indexOf(")");
+                if (endIndex >= 0) {
+                    String addressStr = addressPart.substring(7, endIndex).trim();
+                    
+                    // Record client state change
+                    if (isConnected) {
+                        logger.info("Client connection detected: " + addressStr);
+                        // Client identity is already saved in clientConnections
+                    } else {
+                        logger.info("Client disconnection detected: " + addressStr);
+                        // Clean up client message state
+                        for (SocketAddress addr : clientMessageStates.keySet()) {
+                            if (addr.toString().contains(addressStr)) {
+                                clientMessageStates.remove(addr);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to parse client address: " + logMessage, e);
+        }
+    }
+
+    */
+/**
+     * Handle communication state change
+     *//*
+
+    private void handleCommunicationStateChange(boolean communicatable) {
+        logger.info("Communication state change: " + (communicatable ? "communicatable" : "not communicatable"));
+    }
+
+    */
+/**
+     * Handle received SECS message
+     *//*
+
+    private void handleReceivedMessage(SecsMessage message) {
+        try {
+            // Get message source address
+            SocketAddress source = message.getSourceAddress();
+            if (source == null) {
+                logger.warning("Received message without source address, cannot reply to specific client");
+                
+                // 查看是否有已连接的客户端
+                Set<SocketAddress> clients = server.getConnectedClients();
+                if (clients.size() == 1) {
+                    // 如果只有一个客户端连接，就使用它作为源地址
+                    source = clients.iterator().next();
+                    logger.info("Using single connected client as source: " + source);
+                } else if (!clients.isEmpty()) {
+                    // 如果有多个客户端，记录警告但继续处理
+                    logger.warning("Multiple clients connected (" + clients.size() + "), but message has no source. Will broadcast reply.");
+                    source = null; // 将使用广播模式
+                } else {
+                    // 没有客户端连接
+                    logger.warning("No clients connected, cannot send reply");
+                    return;
+                }
+            }
+
+            // Update or create client message state
+            if (source != null) {
+                ClientMessageState state = clientMessageStates.computeIfAbsent(source, ClientMessageState::new);
+                state.recordMessage();
+            }
+
+            // Get message stream and function
+            int strm = message.getStream();
+            int func = message.getFunction();
+
+            logger.info(String.format("Received message - Client: %s, S%dF%d", source, strm, func));
+
+            // Handle different message types
+            if (strm == 1 && func == 1) {
+                // S1F1 (Are You There)
+                handleS1F1(message, source);
+            } else if (strm == 1 && func == 13) {
+                // S1F13 (Establish Communication Request)
+                handleS1F13(message, source);
+            } else if (strm == 2 && func == 31) {
+                // S2F31 (Date and Time Request)
+                handleS2F31(message, source);
+            } else {
+                // For other messages not explicitly handled, send a generic response
+                handleGenericMessage(message, source);
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error processing message", e);
+        }
+    }
+
+    */
+/**
+     * Handle S1F1 message (Are You There)
+     *//*
+
+    private void handleS1F1(SecsMessage message, SocketAddress source) throws SecsSendMessageException, InterruptedException, Secs2Exception {
+        logger.info("Handling S1F1 message (Are You There) from: " + source);
+        
+        // Construct S1F2 response (Online Data)
+        SecsMessage reply = server.createReplyMessage(message, 1, 2, false, 
+                            Secs2.list(Secs2.ascii("MDLN-001"), Secs2.ascii("SOFTREV-001")));
+        
+        // Send to specific client if source is available, otherwise broadcast
+        if (source != null) {
+            server.sendToClient(reply, source);
+            logger.info("Sent S1F2 reply to: " + source);
+        } else {
+            // 如果没有源地址，就广播回复
+            try {
+                server.send(reply);
+                logger.info("Broadcast S1F2 reply to all clients");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to broadcast S1F2 reply", e);
+            }
+        }
+    }
+
+    */
+/**
+     * Handle S1F13 message (Establish Communication Request)
+     *//*
+
+    private void handleS1F13(SecsMessage message, SocketAddress source) throws SecsSendMessageException, InterruptedException, Secs2Exception {
+        logger.info("Handling S1F13 message (Establish Communication Request) from: " + source);
+        
+        // Construct S1F14 response (Establish Communication Request Acknowledge)
+        SecsMessage reply = server.createReplyMessage(message, 1, 14, false, Secs2.binary((byte) 0));
+        
+        // Send to specific client if source is available, otherwise broadcast
+        if (source != null) {
+            server.sendToClient(reply, source);
+            logger.info("Sent S1F14 reply to: " + source);
+        } else {
+            // 如果没有源地址，就广播回复
+            try {
+                server.send(reply);
+                logger.info("Broadcast S1F14 reply to all clients");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to broadcast S1F14 reply", e);
+            }
+        }
+    }
+
+    */
+/**
+     * Handle S2F31 message (Date and Time Request)
+     *//*
+
+    private void handleS2F31(SecsMessage message, SocketAddress source) throws SecsSendMessageException, InterruptedException, Secs2Exception {
+        logger.info("Handling S2F31 message (Date and Time Request) from: " + source);
+        
+        // Get current time
+        LocalDateTime now = LocalDateTime.now();
+        String timeString = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        
+        // Construct S2F32 response (Date and Time Data)
+        SecsMessage reply = server.createReplyMessage(message, 2, 32, false, Secs2.ascii(timeString));
+        
+        // Send to specific client if source is available, otherwise broadcast
+        if (source != null) {
+            server.sendToClient(reply, source);
+            logger.info("Sent S2F32 reply to: " + source);
+        } else {
+            // 如果没有源地址，就广播回复
+            try {
+                server.send(reply);
+                logger.info("Broadcast S2F32 reply to all clients");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to broadcast S2F32 reply", e);
+            }
+        }
+    }
+
+    */
+/**
+     * Handle generic message
+     *//*
+
+    private void handleGenericMessage(SecsMessage message, SocketAddress source) throws SecsSendMessageException, InterruptedException {
+        logger.info("Handling generic message from: " + source);
+        
+        // For messages that expect a reply (W-Bit set)
+        if (message.wbit()) {
+            try {
+                // Create a simple acknowledgment reply with the same stream and function+1
+                SecsMessage reply = server.createReplyMessage(
+                        message, 
+                        message.getStream(), 
+                        message.getFunction() + 1, 
+                        false, 
+                        Secs2.binary((byte) 0)
+                );
+                
+                // Send to specific client if source is available, otherwise broadcast
+                if (source != null) {
+                    server.sendToClient(reply, source);
+                    logger.info("Sent generic reply to: " + source);
+                } else {
+                    // 如果没有源地址，就广播回复
+                    try {
+                        server.send(reply);
+                        logger.info("Broadcast generic reply to all clients");
+                    } catch (Exception e) {
+                        logger.log(Level.WARNING, "Failed to broadcast generic reply", e);
+                    }
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Error creating generic reply", e);
+            }
+        }
+    }
+
+    */
+/**
+     * Open connection
+     *//*
+
+    public void open() throws IOException {
+        logger.info("Opening server connection...");
+        server.open();
+        logger.info("SECS-I Multi-client TCP server started, listening at: " + SERVER_IP + ":" + SERVER_PORT);
+
+        // Heartbeat functionality has been disabled
+        // Do not call startHeartbeatThread() here
+
+        // Start client info thread - periodically display connected client information
+        startClientInfoThread();
+    }
+
+    */
+/**
+     * Close connection
+     *//*
+
+    public void close() throws IOException {
+        logger.info("Closing server connection...");
+        
+        // Stop heartbeat thread
+        if (heartbeatThread != null) {
+            heartbeatThread.interrupt();
+        }
+        
+        // Stop client info thread
+        if (clientInfoThread != null) {
+            clientInfoThread.interrupt();
+        }
+        
+        // Close server
+        server.close();
+        
+        logger.info("Server closed");
+    }
+
+    */
+/**
+     * Start heartbeat thread
+     *//*
+
+*/
+/*    private void startHeartbeatThread() {
+        heartbeatThread = new Thread(() -> {
+            logger.info("Heartbeat thread started");
+            
+            try {
+                while (!Thread.currentThread().isInterrupted()) {
+                    // Wait for specified heartbeat interval
+                    TimeUnit.SECONDS.sleep(HEARTBEAT_INTERVAL_SECONDS);
+                    
+                    // Get all connected clients
+                    Map<SocketAddress, Long> clients = server.getConnectedClients();
+                    
+                    if (!clients.isEmpty()) {
+                        logger.info("Sending heartbeat to " + clients.size() + " clients");
+                        
+                        // Send heartbeat message to each client (S1F1)
+                        for (SocketAddress client : clients.keySet()) {
+                            try {
+                                // Create S1F1 message (Are You There)
+                                SecsMessage heartbeat = new com.shimizukenta.secs.impl.SecsMessageBuilder()
+                                        .stream(1)
+                                        .function(1)
+                                        .wbit(true)
+                                        .secs2(Secs2.empty())
+                                        .build();
+                                
+                                // Send to specific client
+                                server.sendMessageToClient(heartbeat, client);
+                                
+                                logger.fine("Heartbeat sent to: " + client);
+                            } catch (Exception e) {
+                                logger.log(Level.WARNING, "Failed to send heartbeat to client " + client, e);
+                            }
+                        }
+                    }
+                }
+            } catch (InterruptedException e) {
+                logger.info("Heartbeat thread interrupted");
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Error in heartbeat thread", e);
+            }
+        });
+        
+        heartbeatThread.setDaemon(true);
+        heartbeatThread.start();
+    }*//*
+
+
+    */
+/**
+     * Start client info thread
+     *//*
+
+    private void startClientInfoThread() {
+        clientInfoThread = new Thread(() -> {
+            logger.info("Client info thread started");
+            
+            try {
+                while (!Thread.currentThread().isInterrupted()) {
+                    // Wait for specified interval
+                    TimeUnit.SECONDS.sleep(CLIENT_INFO_INTERVAL_SECONDS);
+                    
+                    // Get all connected clients
+                    Map<SocketAddress, Long> clients = server.getConnectedClients();
+                    
+                    if (!clients.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Currently connected clients (").append(clients.size()).append("):");
+                        
+                        for (Map.Entry<SocketAddress, Long> entry : clients.entrySet()) {
+                            SocketAddress client = entry.getKey();
+                            long connectTime = entry.getValue();
+                            
+                            String connectTimeStr = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                                    .format(new java.util.Date(connectTime));
+                            
+                            // Get client message state
+                            ClientMessageState state = clientMessageStates.get(client);
+                            int msgCount = state != null ? state.getMessageCount() : 0;
+                            String lastMsgTime = state != null ? state.getLastMessageTimeString() : "No messages";
+                            
+                            sb.append("\n  - ").append(client)
+                              .append(", Connected at: ").append(connectTimeStr)
+                              .append(", Messages: ").append(msgCount)
+                              .append(", Last message: ").append(lastMsgTime);
+                        }
+                        
+                        logger.info(sb.toString());
+                    } else {
+                        logger.info("No clients currently connected");
+                    }
+                }
+            } catch (InterruptedException e) {
+                logger.info("Client info thread interrupted");
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Error in client info thread", e);
+            }
+        });
+        
+        clientInfoThread.setDaemon(true);
+        clientInfoThread.start();
+    }
+
+    */
+/**
+     * Main method
+     *//*
+
+    public static void main(String[] args) {
+        try {
+            logger.info("Starting SECS-I Multi-client TCP server test...");
+            
+            // Create server
+            Secs1MultiClientServerTest server = new Secs1MultiClientServerTest();
+            
+            // Open connection
+            server.open();
+            
+            logger.info("Server started, press Enter to stop...");
+            
+            // Wait for user input to stop server
+            System.in.read();
+            
+            // Close server
+            server.close();
+            
+            logger.info("Program exited");
+            
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Program error", e);
+        }
+    }
+}
+*/
