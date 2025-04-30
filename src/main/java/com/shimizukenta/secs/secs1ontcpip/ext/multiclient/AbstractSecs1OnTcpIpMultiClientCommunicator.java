@@ -471,4 +471,21 @@ public abstract class AbstractSecs1OnTcpIpMultiClientCommunicator extends Abstra
         return sendAndWaitReply(strm, func, secs2);
     }
 
+    /**
+     * 检查通信器是否打开
+     *
+     * @return 如果通信器已打开则返回true，否则返回false
+     */
+    @Override
+    public boolean isOpen() {
+        boolean isOpened = opened.get();
+        boolean isChannelOpen = channel.isOpen();
+        boolean result = isOpened && isChannelOpen;
+
+        System.out.println("AbstractSecs1OnTcpIpMultiClientCommunicator.isOpen() - " +
+                "opened=" + isOpened + ", channel.isOpen()=" + isChannelOpen + ", result=" + result);
+
+        return result;
+    }
+
 }

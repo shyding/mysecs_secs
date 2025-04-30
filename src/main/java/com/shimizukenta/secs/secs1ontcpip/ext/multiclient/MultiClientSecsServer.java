@@ -246,8 +246,21 @@ public class MultiClientSecsServer implements Closeable {
 
             if (connection != null) {
                 try {
-                    addSecs1MessageReceiveBiListener( hostReceiveListener);
-                    addSecsMessageReceiveListener( this.listener);
+                    // 注册消息监听器
+                    if (hostReceiveListener != null) {
+                        System.out.println("注册 hostReceiveListener 到客户端通信器: " + remoteAddress);
+                        connection.getCommunicator().addSecs1MessageReceiveBiListener(hostReceiveListener);
+                    } else {
+                        System.out.println("hostReceiveListener 为空，不注册");
+                    }
+
+                    if (this.listener != null) {
+                        System.out.println("注册 SecsMessageReceiveListener 到客户端通信器: " + remoteAddress);
+                        connection.getCommunicator().addSecsMessageReceiveListener(this.listener);
+                    } else {
+                        System.out.println("SecsMessageReceiveListener 为空，不注册");
+                    }
+
                     // 打开连接
                     if (!connection.getCommunicator().isOpen()) {
                         logger.info("打开客户端通信器: " + remoteAddress);
@@ -613,12 +626,44 @@ public class MultiClientSecsServer implements Closeable {
     public Optional<SecsMessage> sendToClient(SocketAddress clientAddress, int stream, int function,
                                              boolean wbit, Secs2 secs2)
             throws SecsSendMessageException, InterruptedException {
+        System.out.println(String.format("准备发送S%dF%d%s消息到客户端: %s",
+                stream, function, (wbit ? " W" : ""), clientAddress));
+
+        // 获取客户端连接
         ClientConnection connection = connectionManager.getConnection(clientAddress);
-        if (connection != null && !connection.isClosed()) {
-            return connection.send(stream, function, wbit, secs2);
-        } else {
-            logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
-            throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
+
+        if (connection == null) {
+            System.out.println("找不到客户端连接: " + clientAddress);
+            logger.warning("找不到客户端连接: " + clientAddress);
+            throw new SecsSendMessageException("Client connection not found: " + clientAddress);
+        }
+
+        if (connection.isClosed()) {
+            System.out.println("客户端连接已关闭: " + clientAddress);
+            logger.warning("客户端连接已关闭: " + clientAddress);
+            throw new SecsSendMessageException("Client connection is closed: " + clientAddress);
+        }
+
+        // 检查通信器状态
+        System.out.println("检查通信器状态: " +
+                (connection.getCommunicator().isOpen() ? "已打开" : "未打开"));
+
+        // 发送消息
+        try {
+            System.out.println(String.format("开始发送S%dF%d%s消息到客户端: %s",
+                    stream, function, (wbit ? " W" : ""), clientAddress));
+
+            Optional<SecsMessage> result = connection.send(stream, function, wbit, secs2);
+
+            System.out.println(String.format("消息S%dF%d%s已发送到客户端: %s",
+                    stream, function, (wbit ? " W" : ""), clientAddress));
+
+            return result;
+        } catch (Exception e) {
+            System.out.println(String.format("发送S%dF%d%s消息失败: %s",
+                    stream, function, (wbit ? " W" : ""), e.getMessage()));
+            e.printStackTrace();
+            throw e;
         }
     }
 
@@ -818,5 +863,14 @@ public class MultiClientSecsServer implements Closeable {
 
     public void addSecs1MessageReceiveBiListener(Secs1MessageReceiveBiListener hostReceiveListener) {
        this.hostReceiveListener= hostReceiveListener;
+    }
+
+    /**
+     * 获取连接管理器
+     *
+     * @return 连接管理器
+     */
+    public ClientConnectionManager getConnectionManager() {
+        return this.connectionManager;
     }
 }

@@ -103,35 +103,59 @@ public class ClientConnection implements Closeable {
             throws SecsSendMessageException, InterruptedException {
         try {
             updateLastActivityTime();
+            System.out.println(String.format("开始向客户端 %s 发送消息: S%dF%d%s",
+                    remoteAddress, stream, function, (wbit ? " W" : "")));
             logger.info(String.format("向客户端 %s 发送消息: S%dF%d%s, 数据: %s",
                     remoteAddress, stream, function, (wbit ? " W" : ""), secs2));
 
             // 检查通道是否打开
-            if (channel == null || !channel.isOpen()) {
+            if (channel == null) {
+                System.out.println("客户端通道为空: " + remoteAddress);
+                logger.warning("客户端通道为空: " + remoteAddress);
+                throw new SecsSendMessageException("Client channel is null: " + remoteAddress);
+            }
+
+            if (!channel.isOpen()) {
+                System.out.println("客户端通道已关闭: " + remoteAddress);
                 logger.warning("客户端通道已关闭: " + remoteAddress);
                 throw new SecsSendMessageException("Client channel is closed: " + remoteAddress);
             }
 
             // 检查通信器是否打开
             if (!communicator.isOpen()) {
+                System.out.println("通信器未打开: " + remoteAddress);
                 logger.warning("通信器未打开: " + remoteAddress);
                 throw new SecsSendMessageException("Communicator is not open: " + remoteAddress);
             }
 
             // 尝试发送消息
+            System.out.println("开始发送消息...");
             logger.fine("开始发送消息...");
-            Optional<SecsMessage> reply = communicator.send(stream, function, wbit, secs2);
-            logger.fine("消息发送完成");
 
-            if (reply.isPresent()) {
-                logger.info(String.format("收到客户端 %s 的回复: S%dF%d%s, 数据: %s",
-                        remoteAddress, reply.get().getStream(), reply.get().getFunction(),
-                        (reply.get().wbit() ? " W" : ""), reply.get().secs2()));
-            } else {
-                logger.fine("未收到客户端回复");
+            try {
+                Optional<SecsMessage> reply = communicator.send(stream, function, wbit, secs2);
+
+                System.out.println("消息发送完成");
+                logger.fine("消息发送完成");
+
+                if (reply.isPresent()) {
+                    System.out.println(String.format("收到客户端 %s 的回复: S%dF%d%s",
+                            remoteAddress, reply.get().getStream(), reply.get().getFunction(),
+                            (reply.get().wbit() ? " W" : "")));
+                    logger.info(String.format("收到客户端 %s 的回复: S%dF%d%s, 数据: %s",
+                            remoteAddress, reply.get().getStream(), reply.get().getFunction(),
+                            (reply.get().wbit() ? " W" : ""), reply.get().secs2()));
+                } else {
+                    System.out.println("未收到客户端回复");
+                    logger.fine("未收到客户端回复");
+                }
+
+                return reply;
+            } catch (Exception e) {
+                System.out.println("发送消息时发生异常: " + e.getMessage());
+                e.printStackTrace();
+                throw e;
             }
-
-            return reply;
         } catch (SecsException e) {
             logger.log(Level.WARNING, "发送消息失败: " + e.getMessage(), e);
 

@@ -13,19 +13,13 @@ import com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener;
 import com.shimizukenta.secs.secs1.impl.Secs1ValidMessage;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
 import com.shimizukenta.secs.secs2.Secs2;
-import com.shimizukenta.secs.secs2.Secs2Exception;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Scanner;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -57,18 +51,31 @@ public class MultiClientSecsServerTest {
             // 创建并启动服务器
             MultiClientSecsServer server = new MultiClientSecsServer(config);
 
+            // 初始化hostReceiveListener
+
             // 注册消息处理器
+            System.out.println("注册消息处理器");
             server.addSecsMessageReceiveListener(msg -> {
                 try {
+                    System.out.println(String.format("收到消息，准备处理: S%dF%d%s",
+                            msg.getStream(), msg.getFunction(), (msg.wbit() ? " W" : "")));
                     handleMessage(server, msg);
                 } catch (Exception e) {
+                    System.out.println("处理消息时出错: " + e.getMessage());
+                    e.printStackTrace();
                     logger.log(Level.SEVERE, "处理消息时出错", e);
                 }
             });
 
+            // 注册Secs1MessageReceiveBiListener
+            System.out.println("注册Secs1MessageReceiveBiListener");
+            server.addSecs1MessageReceiveBiListener(hostReceiveListener);
+
             // 启动服务器
+            System.out.println("启动服务器...");
             server.open();
             logger.info("服务器已启动，监听端口: " + config.socketAddress());
+            System.out.println("服务器已启动，监听端口: " + config.socketAddress());
 
             // 启动命令行交互线程
             Thread commandThread = new Thread(() -> {
@@ -157,6 +164,8 @@ public class MultiClientSecsServerTest {
     private static void handleS1F1(MultiClientSecsServer server, SecsMessage message, SocketAddress source)
             throws SecsSendMessageException, SecsWaitReplyMessageException, SecsException, InterruptedException {
 
+        System.out.println("handleS1F1 - 开始处理S1F1消息，来源: " + source);
+
         try {
             // 创建S1F2响应 - 在线数据
             Secs2 replyData = Secs2.list(
@@ -168,12 +177,36 @@ public class MultiClientSecsServerTest {
                             Secs2.ascii("1.0.0"))
             );
 
+            System.out.println("handleS1F1 - 已创建S1F2响应数据: " + replyData);
+
+            // 检查客户端连接
+            ClientConnection connection = server.getConnectionManager().getConnection(source);
+            if (connection == null) {
+                System.out.println("handleS1F1 - 找不到客户端连接: " + source);
+                throw new SecsSendMessageException("Client connection not found: " + source);
+            }
+
+            if (connection.isClosed()) {
+                System.out.println("handleS1F1 - 客户端连接已关闭: " + source);
+                throw new SecsSendMessageException("Client connection is closed: " + source);
+            }
+
+            System.out.println("handleS1F1 - 客户端连接状态: " +
+                    (connection.isConnected() ? "已连接" : "未连接"));
+            System.out.println("handleS1F1 - 通信器状态: " +
+                    (connection.getCommunicator().isOpen() ? "已打开" : "未打开"));
+
             // 发送响应到特定客户端
+            System.out.println("handleS1F1 - 准备发送S1F2响应到: " + source);
             server.send(source, 1, 2, false, replyData);
+            System.out.println("handleS1F1 - 已发送S1F2响应到: " + source);
             logger.info("已发送S1F2响应到 " + source);
 
         } catch (Exception e) {
+            System.out.println("handleS1F1 - 创建S1F2响应时出错: " + e.getMessage());
+            e.printStackTrace();
             logger.log(Level.SEVERE, "创建S1F2响应时出错", e);
+            throw e;
         }
     }
 
