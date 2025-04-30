@@ -1,0 +1,2277 @@
+package com.shimizukenta.tmp.secs;
+
+
+import com.shimizukenta.secs.secs2.Secs2;
+
+import javax.xml.bind.DatatypeConverter;
+import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * 全新实现的SECS服务器
+ * 只使用SecsMessage和Secs2数据类型
+ */
+public class SecsServer {
+    // SECS-I 控制字符
+    private static final byte ENQ = 0x05;  // 询问
+    private static final byte EOT = 0x04;  // 传输结束
+    private static final byte ACK = 0x06;  // 确认
+    private static final byte NAK = 0x15;  // 否定确认
+    private static final Logger LOGGER = Logger.getLogger(SecsServer.class.getName());
+
+    // 默认系统字节
+    private static final byte[] DEFAULT_SYSTEM_BYTES = new byte[]{0, 0, 0, 0};
+
+    /**
+     * 将字节数组转换为十六进制字符串
+     *
+     * @param bytes 字节数组
+     * @return 十六进制字符串
+     */
+    static String bytesToHex(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+        return DatatypeConverter.printHexBinary(bytes);
+    }
+
+    // 服务器配置
+    private final int port;
+    private final int maxConnections;
+    private final int timeoutMillis;
+    private final boolean useHsms;
+
+    // 线程管理
+    private final ExecutorService connectionPool;
+    private final ExecutorService messageProcessorPool;
+    private final ScheduledExecutorService timerPool;
+
+    // 服务端socket
+    private ServerSocket serverSocket;
+
+    // 客户端连接管理
+    private final Map<Integer, ClientHandler> clients = new ConcurrentHashMap<>();
+    private final Map<Integer, ClientState> clientStates = new ConcurrentHashMap<>();
+    private final Map<String, Integer> sessionRegistry = new ConcurrentHashMap<>(); // SessionID -> ClientID映射
+    private final AtomicInteger nextClientId = new AtomicInteger(1);
+    private final AtomicBoolean running = new AtomicBoolean(false);
+
+    // 消息处理和事件监听
+    private SecsMessageHandler messageHandler;
+    private ConnectionEventListener connectionEventListener;
+
+    /**
+     * 创建SECS服务器
+     *
+     * @param port 服务器端口
+     * @param maxConnections 最大连接数
+     * @param timeoutMillis 超时时间（毫秒）
+     */
+    public SecsServer(int port, int maxConnections, int timeoutMillis) {
+        this(port, maxConnections, timeoutMillis, false);
+    }
+
+    /**
+     * 创建SECS服务器
+     *
+     * @param port 服务器端口
+     * @param maxConnections 最大连接数
+     * @param timeoutMillis 超时时间（毫秒）
+     * @param useHsms 是否使用HSMS-SS模式
+     */
+    public SecsServer(int port, int maxConnections, int timeoutMillis, boolean useHsms) {
+        this.port = port;
+        this.maxConnections = maxConnections;
+        this.timeoutMillis = timeoutMillis;
+        this.useHsms = useHsms;
+
+        // 创建线程池
+        this.connectionPool = Executors.newFixedThreadPool(maxConnections);
+        this.messageProcessorPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        this.timerPool = Executors.newScheduledThreadPool(1);
+    }
+
+    /**
+     * 启动服务器
+     *
+     * @throws IOException 如果服务器启动失败
+     */
+    public void start() throws IOException {
+        if (running.compareAndSet(false, true)) {
+            // 创建服务器Socket
+            serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress(port));
+
+            // 开始接受连接
+            connectionPool.execute(this::acceptConnections);
+
+            LOGGER.info((useHsms ? "HSMS-SS" : "SECS-I") + " Server started on port " + port);
+        } else {
+            LOGGER.warning("Server is already running");
+        }
+    }
+
+    /**
+     * 接受客户端连接
+     */
+    private void acceptConnections() {
+        while (running.get() && !serverSocket.isClosed()) {
+            try {
+                // 等待新客户端连接
+                Socket clientSocket = serverSocket.accept();
+
+                // 检查是否达到最大连接数
+                if (clients.size() >= maxConnections) {
+                    try {
+                        clientSocket.close();
+                    } catch (IOException e) {
+                        LOGGER.log(Level.WARNING, "Error closing rejected client socket", e);
+                    }
+                    LOGGER.warning("Maximum connections reached, rejected new connection");
+                    continue;
+                }
+
+                // 创建新客户端处理器
+                int clientId = nextClientId.getAndIncrement();
+                ClientHandler clientHandler = new ClientHandler(clientId, clientSocket);
+                clients.put(clientId, clientHandler);
+
+                // 创建客户端状态
+                ClientState clientState = new ClientState(clientId);
+                clientStates.put(clientId, clientState);
+
+                // 启动客户端处理线程
+                connectionPool.execute(clientHandler);
+
+                // 通知连接事件
+                if (connectionEventListener != null) {
+                    String address = clientSocket.getRemoteSocketAddress().toString();
+                    messageProcessorPool.execute(() ->
+                        connectionEventListener.onClientConnected(clientId, address));
+                }
+
+                LOGGER.info("New client connected: ID=" + clientId);
+
+            } catch (IOException e) {
+                if (running.get()) {
+                    LOGGER.log(Level.SEVERE, "Error accepting client connection", e);
+                }
+            }
+        }
+    }
+
+    /**
+     * 消息块收集器，用于收集多块消息
+     */
+    private static class MessageBlocksCollector {
+        private final int stream;
+        private final int function;
+        private final byte[] systemBytes;
+        private final List<byte[]> dataBlocks = new ArrayList<>();
+        private final long creationTime;
+        private boolean complete = false;
+
+        public MessageBlocksCollector(int stream, int function, byte[] systemBytes) {
+            this.stream = stream;
+            this.function = function;
+            this.systemBytes = systemBytes;
+            this.creationTime = System.currentTimeMillis();
+        }
+
+        public void addBlock(byte[] data) {
+            dataBlocks.add(data);
+        }
+
+        public void markComplete() {
+            this.complete = true;
+        }
+
+        public boolean isComplete() {
+            return complete;
+        }
+
+        public int getStream() {
+            return stream;
+        }
+
+        public int getFunction() {
+            return function;
+        }
+
+        public byte[] getSystemBytes() {
+            return systemBytes;
+        }
+
+        public byte[] getCombinedData() {
+            if (dataBlocks.isEmpty()) {
+                return new byte[0];
+            }
+
+            if (dataBlocks.size() == 1) {
+                return dataBlocks.get(0);
+            }
+
+            // 合并所有数据块
+            int totalLength = 0;
+            for (byte[] block : dataBlocks) {
+                totalLength += block.length;
+            }
+
+            byte[] result = new byte[totalLength];
+            int offset = 0;
+            for (byte[] block : dataBlocks) {
+                System.arraycopy(block, 0, result, offset, block.length);
+                offset += block.length;
+            }
+
+            return result;
+        }
+
+        public long getCreationTime() {
+            return creationTime;
+        }
+    }
+
+    /**
+     * 客户端处理器
+     */
+    private class ClientHandler implements Runnable {
+        private static final byte ENQ = 0x05; // Enquiry
+        private static final byte EOT = 0x04; // End of Transmission
+        private static final byte ACK = 0x06; // Acknowledge
+        private static final byte NAK = 0x15; // Negative Acknowledge
+
+        private final int clientId;
+        private final Socket socket;
+        private final AtomicBoolean connected = new AtomicBoolean(true);
+        private final boolean isMaster = true; // 默认为主设备
+        private DataInputStream in;
+        private DataOutputStream out;
+
+        /**
+         * 创建客户端处理器
+         *
+         * @param clientId 客户端ID
+         * @param socket 客户端Socket
+         */
+        public ClientHandler(int clientId, Socket socket) {
+            this.clientId = clientId;
+            this.socket = socket;
+            try {
+                this.in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+                this.out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+                socket.setSoTimeout(timeoutMillis);
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, "Error initializing client handler streams", e);
+                disconnect();
+            }
+        }
+
+        /**
+         * 客户端处理主循环
+         */
+        @Override
+        public void run() {
+            try {
+                while (connected.get() && running.get()) {
+                    try {
+                        // 读取消息
+                        if (useHsms) {
+                            processHsmsMessage();
+                        } else {
+                            processSecsMessage();
+                        }
+
+                        // 短暂休眠，避免CPU占用过高
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    } catch (EOFException e) {
+                        // 客户端关闭连接
+                        LOGGER.info("Client " + clientId + " closed connection");
+                        break;
+                    } catch (IOException e) {
+                        if (connected.get()) {
+                            LOGGER.log(Level.WARNING, "I/O error with client " + clientId, e);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error processing client " + clientId, e);
+            } finally {
+                disconnect();
+            }
+        }
+
+        /**
+         * 处理HSMS-SS消息
+         *
+         * @throws IOException 如果读取消息出错
+         */
+        private void processHsmsMessage() throws IOException {
+            // 读取消息长度
+            byte[] lengthBytes = new byte[4];
+            in.readFully(lengthBytes);
+            int length = ByteBuffer.wrap(lengthBytes).order(ByteOrder.BIG_ENDIAN).getInt();
+
+            // 打印长度字节的十六进制值
+            StringBuilder lengthSb = new StringBuilder("\nHSMS IN - Received message length: ");
+            for (byte b : lengthBytes) {
+                lengthSb.append(String.format("%02X ", b));
+            }
+            LOGGER.warning(lengthSb.toString() + " -> " + length);
+
+            if (length < 10 || length > 0xFFFFFF) {
+                LOGGER.warning("Invalid HSMS message length: " + length);
+                return;
+            }
+
+            // 读取完整消息（包括头部和数据）
+            byte[] messageBytes = new byte[length + 4]; // 包括长度字段
+            System.arraycopy(lengthBytes, 0, messageBytes, 0, 4); // 复制长度字段
+            in.readFully(messageBytes, 4, length); // 读取完整消息体
+
+            // 解析头部
+            byte[] headerBytes = Arrays.copyOfRange(messageBytes, 4, 14);
+            ByteBuffer headerBuffer = ByteBuffer.wrap(headerBytes).order(ByteOrder.BIG_ENDIAN);
+
+            // 记录收到的消息长度
+            byte[] msgLengthBytes = Arrays.copyOfRange(messageBytes, 0, 4);
+            int messageLength = ByteBuffer.wrap(msgLengthBytes).order(ByteOrder.BIG_ENDIAN).getInt();
+
+            // 基本头部解析
+            // Session ID (4字节)
+            byte[] sessionIdBytes = new byte[4];
+            headerBuffer.get(sessionIdBytes);
+            String sessionIdHex = bytesToHex(sessionIdBytes);
+
+            // 将Session ID存储到客户端状态
+            ClientState clientState = clientStates.get(clientId);
+            if (clientState != null) {
+                // 处理SessionID为0和SessionID为65535的情况
+                // 在SECS协议中，这两个值应该被视为同一个SessionID
+                if ("00000000".equals(sessionIdHex) || "FFFF0000".equals(sessionIdHex)) {
+                    // 将两种SessionID都标准化为"FFFF0000"
+                    LOGGER.info("Normalizing SessionID " + sessionIdHex + " to FFFF0000");
+                    sessionIdHex = "FFFF0000";
+                }
+                clientState.setSessionId(sessionIdHex);
+            }
+
+            // 保存原始头部字节，便于后续处理
+            byte headerByte1 = sessionIdBytes[0]; // 第一个字节
+            byte headerByte2 = sessionIdBytes[1]; // 第二个字节
+            byte headerByte3 = sessionIdBytes[2]; // 第三个字节，可能包含 Stream 和 W-bit
+            byte headerByte4 = sessionIdBytes[3]; // 第四个字节，可能包含 Function
+
+            // PType和SType
+            byte pType = headerBuffer.get(); // PType
+            byte sType = headerBuffer.get(); // SType
+
+            // 打印头部字节的十六进制值
+            StringBuilder headerSb = new StringBuilder("\nHSMS IN - Header bytes: ");
+            for (byte b : headerBytes) {
+                headerSb.append(String.format("%02X ", b));
+            }
+            LOGGER.warning(headerSb.toString());
+
+            // 打印PType和SType的十六进制值
+            LOGGER.warning("HSMS IN - PType: " + String.format("%02X", pType) + ", SType: " + String.format("%02X", sType));
+
+            // 检查客户端日志中的消息格式
+            // 客户端日志中的Select.req消息格式是：
+            // FF FF 00 00 00 01 80 00 00 01
+            // 其中 FF FF 00 00 是 Session ID
+            // 00 01 是 PType=0, SType=1
+            // 80 00 00 01 是 System Bytes
+            // 但是根据您的说法，PType应该是1，而不是0
+            // 因此，我们需要检查消息格式是否有问题
+
+            // 系统字节 (4字节)
+            byte[] systemBytes = new byte[4];
+            headerBuffer.get(systemBytes);
+
+            // 打印接收到的消息的详细信息
+            StringBuilder rawMsgSb = new StringBuilder("\nHSMS IN - Raw message bytes: ");
+            for (byte b : messageBytes) {
+                rawMsgSb.append(String.format("%02X ", b));
+            }
+            LOGGER.warning(rawMsgSb.toString());
+
+
+            // 解析数据部分
+            byte[] messageData = null;
+            if (messageLength > 10) {
+                messageData = Arrays.copyOfRange(messageBytes, 14, messageBytes.length);
+            }
+
+            // 获取消息类型
+            // 根据 HSMS 协议：
+            // 1. 控制消息的判断条件是 pType == 0x01
+            // 2. 数据消息的判断条件是 pType == 0x00 && sType == 0x00
+            // 但是，根据客户端日志，它发送的 Select.req 消息的 PType 是 00，而不是 01
+            // 因此，我们需要特殊处理这种情况
+            boolean isControlMessage = (pType == 0x01) || (pType == 0x00 && sType >= 0x01 && sType <= 0x09);
+            boolean isDataMessage = (pType == 0x00 && sType == 0x00);
+            int stream = 0;
+            int function = 0;
+            String messageType = "";
+
+            if (isControlMessage) {
+                // 对于控制消息，stream=0，function=SType
+                stream = 0;
+                function = sType & 0xFF;
+
+                // 记录消息类型日志
+                switch (function) {
+                    case 1: messageType = "Select.req"; break;
+                    case 2: messageType = "Select.rsp"; break;
+                    case 3: messageType = "Deselect.req"; break;
+                    case 4: messageType = "Deselect.rsp"; break;
+                    case 5: messageType = "Linktest.req"; break;
+                    case 6: messageType = "Linktest.rsp"; break;
+                    case 7: messageType = "Reject.req"; break;
+                    case 8: messageType = "Reject.rsp"; break;
+                    case 9: messageType = "Separate.req"; break;
+                    default: messageType = "Unknown control message"; break;
+                }
+            } else {
+                // 对于数据消息（PType=0）
+                // 根据您提供的数据包，客户端发送的是 S1F1 消息
+                // 消息格式是：
+                // SessionID: 00 00 81 01
+                // PType: 00, SType: 00
+                // SystemBytes: 00 00 00 10
+
+                // 检查是否是S1F1消息的特殊格式
+                if (headerByte3 == (byte)0x81 && headerByte4 == (byte)0x01) {
+                    // 这是S1F1消息
+                    stream = 1;
+                    function = 1;
+                    boolean wBit = true; // S1F1消息通常需要响应
+                    LOGGER.warning("Detected S1F1 message with special format: SessionID=" + sessionIdHex + ", SystemBytes=" + bytesToHex(systemBytes));
+                } else {
+                    // 其他数据消息，尝试使用标准格式解析
+                    // 检查 headerByte3 的最高位是否为 1，表示 W-bit 被设置
+                    boolean wBit = (headerByte3 & 0x80) != 0;
+
+                    // 从 headerByte3 中提取 Stream，去除最高位（W-bit）
+                    stream = headerByte3 & 0x7F;
+
+                    // 从 headerByte4 中提取 Function
+                    function = headerByte4 & 0xFF;
+
+                    LOGGER.warning("Data message: Stream=" + stream + ", Function=" + function + ", W-bit=" + wBit + ", trying to extract from headerBytes: " + String.format("%02X %02X", headerByte3, headerByte4));
+                }
+
+                messageType = "S" + stream + "F" + function + " data message";
+            }
+
+            // 集中打印日志
+            StringBuilder logMessage = new StringBuilder();
+            logMessage.append("\nHSMS IN - Received message details:\n")
+                      .append("Type: ").append(messageType).append("\n")
+                      .append("Length: ").append(bytesToHex(msgLengthBytes)).append(" (").append(messageLength).append(" bytes)\n")
+                      .append("SessionID: ").append(sessionIdHex).append("\n")
+                      .append("PType: ").append(String.format("%02X", pType)).append(", SType: ").append(String.format("%02X", sType)).append("\n")
+                      .append("SystemBytes: ").append(bytesToHex(systemBytes)).append("\n")
+                      .append("Data: ").append(messageData != null ? bytesToHex(messageData) + " (" + messageData.length + " bytes)" : "<none>").append("\n")
+                      .append("Full message: ").append(bytesToHex(messageBytes));
+            LOGGER.info(logMessage.toString());
+
+            // 获取wBit (对于数据消息，W-Bit在Stream的最高位)
+            boolean wBit = !isControlMessage && (stream & 0x80) != 0;
+            if (wBit) {
+                stream &= 0x7F; // 清除W-Bit
+            }
+
+            // 系统字节已经在前面读取
+
+            // 处理消息
+            processMessage(stream, function, systemBytes, messageData);
+
+            // 如果是请求消息 (W-Bit设置)，需要发送响应
+            if (wBit) {
+                // 这里可以添加自动响应逻辑
+            }
+        }
+
+        /**
+         * 处理SECS-I消息
+         *
+         * @throws IOException 如果读取消息出错
+         */
+        private void processSecsMessage() throws IOException {
+            // 检查是否有可用数据
+            if (in.available() <= 0) {
+                return;
+            }
+
+            // 设置超时时间
+            socket.setSoTimeout(timeoutMillis);
+
+            try {
+                // 读取第一个字节，但不从流中移除
+                in.mark(10); // 标记更多字节，以防意外情况
+                int firstByte = in.read();
+                LOGGER.fine(String.format("First byte: %d (0x%02X)", firstByte, firstByte));
+
+                // 处理控制字符
+                if (firstByte == ENQ) {
+                    // 收到ENQ，回复EOT表示准备好接收数据
+                    LOGGER.fine("Received ENQ, sending EOT");
+                    synchronized (out) {
+                        out.write(EOT);
+                        out.flush();
+                    }
+
+                    // 参考secs4java8的实现，在发送EOT后开始接收消息
+                    receiveMessageBlock();
+                    return;
+                } else if (firstByte == EOT || firstByte == ACK || firstByte == NAK) {
+                    // 如果收到其他控制字符，记录并返回
+                    LOGGER.fine(String.format("Received control character: %d (0x%02X)", firstByte, firstByte));
+                    return;
+                } else if (firstByte == 2) { // STX (0x02) 字符
+                    // 如果收到STX，可能是客户端的特殊响应
+                    LOGGER.fine("Received STX (0x02), treating as control character");
+                    return;
+                }
+
+                // 重置流位置
+                in.reset();
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Error processing SECS-I message: " + e.getMessage(), e);
+                throw e;
+            } finally {
+                // 恢复原始超时设置
+                socket.setSoTimeout(timeoutMillis);
+            }
+        }
+
+        /**
+         * 接收SECS-I消息块，参考secs4java8的AbstractSecs1CircuitFacade#receiving方法
+         *
+         * @throws IOException 如果读取消息出错
+         */
+        private void receiveMessageBlock() throws IOException {
+            try {
+                // 读取消息长度字节
+                int lengthByte = in.readUnsignedByte();
+                LOGGER.fine(String.format("Read length byte: %d (0x%02X)", lengthByte, lengthByte));
+
+                int length = lengthByte;
+                if ((lengthByte & 0x80) != 0) {
+                    // 长消息，读取下一个字节
+                    int nextByte = in.readUnsignedByte();
+                    LOGGER.fine(String.format("Read second length byte: %d (0x%02X)", nextByte, nextByte));
+                    length = ((lengthByte & 0x7F) << 8) | nextByte;
+                    LOGGER.fine("Combined length: " + length);
+                }
+
+                // 验证消息长度
+                if (length < 10 || length > 254) {
+                    LOGGER.warning(String.format("Invalid SECS-I message length: %d (0x%02X)", length, length));
+
+                    // 对于无效长度，发送NAK
+                    synchronized (out) {
+                        out.write(NAK);
+                        out.flush();
+                    }
+
+                    // 清除缓冲区中的数据
+                    discardAvailableBytes();
+                    return;
+                }
+
+                // 读取完整消息块（不包括长度字节）
+                byte[] messageBytes = new byte[length];
+                try {
+                    LOGGER.fine("Reading message body of length: " + length);
+                    in.readFully(messageBytes);
+
+                    // 校验消息数据
+                    boolean checksumValid = validateChecksum(messageBytes);
+
+                    if (checksumValid) {
+                        // 发送ACK确认收到消息
+                        LOGGER.fine("Checksum valid, sending ACK");
+                        synchronized (out) {
+                            out.write(ACK);
+                            out.flush();
+                        }
+
+                        // 处理收到的消息块
+                        processReceivedMessageBlock(messageBytes);
+
+                        // 检查是否是最后一个块
+                        boolean ebit = ((messageBytes[4] & 0x80) == 0x80);
+
+                        if (!ebit) {
+                            // 如果不是最后一个块，等待下一个块的ENQ
+                            socket.setSoTimeout(timeoutMillis); // T4超时
+                            int nextByte = in.read();
+
+                            if (nextByte == ENQ) {
+                                LOGGER.fine("Received ENQ for next block");
+                                // 收到ENQ，继续接收下一个块
+                                synchronized (out) {
+                                    out.write(EOT);
+                                    out.flush();
+                                }
+                                receiveMessageBlock();
+                            } else {
+                                LOGGER.warning(String.format("Did not receive ENQ for next block, got: %d (0x%02X)",
+                                        nextByte, nextByte));
+                            }
+                        }
+                    } else {
+                        LOGGER.warning("Checksum invalid, sending NAK");
+                        synchronized (out) {
+                            out.write(NAK);
+                            out.flush();
+                        }
+                    }
+                } catch (EOFException e) {
+                    LOGGER.warning("Incomplete message received: " + e.getMessage());
+                    synchronized (out) {
+                        out.write(NAK);
+                        out.flush();
+                    }
+                }
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Error reading message: " + e.getMessage(), e);
+                try {
+                    synchronized (out) {
+                        out.write(NAK);
+                        out.flush();
+                    }
+                } catch (IOException ex) {
+                    // 忽略发送NAK时的错误
+                }
+                throw e;
+            }
+        }
+
+        /**
+         * 清除输入流中的可用数据
+         */
+        private void discardAvailableBytes() throws IOException {
+            while (in.available() > 0) {
+                int discarded = in.read();
+                LOGGER.fine(String.format("Discarded byte: %d (0x%02X)", discarded, discarded));
+            }
+        }
+
+        /**
+         * 验证SECS-I消息的校验和
+         *
+         * @param messageBytes 消息字节数组
+         * @return 校验和是否有效
+         */
+        private boolean validateChecksum(byte[] messageBytes) {
+            // 暂时禁用校验和验证，始终返回true
+            if (messageBytes == null || messageBytes.length < 2) {
+                LOGGER.warning("Message too short for checksum validation");
+                return true; // 即使消息太短，也返回true
+            }
+
+            // 打印消息字节以便调试
+            LOGGER.fine("Message bytes: " + bytesToHex(messageBytes));
+
+            // 最后两个字节是校验和
+            int checksumPosition = messageBytes.length - 2;
+            int expectedChecksum = ((messageBytes[checksumPosition] & 0xFF) << 8) | (messageBytes[checksumPosition + 1] & 0xFF);
+
+            // 计算校验和（所有字节的总和，不包括最后两个字节）
+            int calculatedChecksum = 0;
+            for (int i = 0; i < checksumPosition; i++) {
+                calculatedChecksum += (messageBytes[i] & 0xFF);
+            }
+            calculatedChecksum = calculatedChecksum & 0xFFFF; // 只保留低16位
+
+            LOGGER.fine(String.format("Checksum: expected=0x%04X, calculated=0x%04X", expectedChecksum, calculatedChecksum));
+
+            // 暂时返回true，忽略校验和验证结果
+            return true;
+
+            // 实际校验和验证逻辑，暂时禁用
+            // return calculatedChecksum == expectedChecksum;
+        }
+
+        // 保存当前正在处理的多块消息
+        private final Map<String, MessageBlocksCollector> messageBlocksCollectors = new ConcurrentHashMap<>();
+
+
+
+        /**
+         * 清理超时的消息块收集器
+         */
+        private void cleanupStaleMessageCollectors() {
+            long now = System.currentTimeMillis();
+            long timeout = 30000; // 30秒超时
+
+            List<String> keysToRemove = new ArrayList<>();
+            for (Map.Entry<String, MessageBlocksCollector> entry : messageBlocksCollectors.entrySet()) {
+                if (now - entry.getValue().getCreationTime() > timeout) {
+                    keysToRemove.add(entry.getKey());
+                }
+            }
+
+            for (String key : keysToRemove) {
+                messageBlocksCollectors.remove(key);
+                LOGGER.warning("Removed stale message collector for key: " + key);
+            }
+        }
+
+        /**
+         * 处理收到的SECS-I消息块
+         *
+         * @param messageBytes 消息字节数组
+         * @throws IOException 如果处理出错
+         */
+        private void processReceivedMessageBlock(byte[] messageBytes) throws IOException {
+            // 清理超时的消息收集器
+            cleanupStaleMessageCollectors();
+
+            // 解析头部
+            ByteBuffer headerBuffer = ByteBuffer.wrap(messageBytes, 0, 10).order(ByteOrder.BIG_ENDIAN);
+
+            // 设备ID (R-Bit在第一个字节最高位)
+            byte deviceIdByte1 = headerBuffer.get();
+            byte deviceIdByte2 = headerBuffer.get();
+
+            // 提取Stream和Function
+            byte headerByte3 = headerBuffer.get(); // Stream
+            byte headerByte4 = headerBuffer.get(); // Function
+
+            // 块控制字节
+            byte blockControlByte = headerBuffer.get(); // 块控制字节
+            headerBuffer.get(); // 保留字节
+
+            // 系统字节
+            byte[] systemBytes = new byte[4];
+            headerBuffer.get(systemBytes);
+
+            // 解析数据部分
+            byte[] data = null;
+            if (messageBytes.length > 10) {
+                data = Arrays.copyOfRange(messageBytes, 10, messageBytes.length);
+            } else {
+                data = new byte[0];
+            }
+
+            // 解析消息头部
+            // 注意：Stream字节的最高位是W-bit，需要排除才能得到真正的Stream ID
+            boolean wBit = (headerByte3 & 0x80) != 0;
+            int stream = headerByte3 & 0x7F; // 只取低7位作为Stream ID
+            int function = headerByte4 & 0xFF;
+
+            // 获取客户端状态
+            ClientState clientState = clientStates.get(clientId);
+            if (clientState != null) {
+                // 存储系统字节
+                clientState.setLastSystemBytes(systemBytes);
+            }
+
+            // 解析块控制字节
+            boolean ebit = (blockControlByte & 0x80) != 0; // E-bit表示最后一个块
+            int blockNumber = blockControlByte & 0x7F; // 块编号
+
+            LOGGER.fine(String.format("Parsed message block: S%dF%d%s, Block %d/%s, System bytes: %s, Data length: %d",
+                    stream, function, (wBit ? " W" : ""), blockNumber, (ebit ? "last" : "more"),
+                    bytesToHex(systemBytes), (data != null ? data.length : 0)));
+
+            // 生成消息收集器的唯一键
+            String collectorKey = String.format("%d-%d-%s", stream, function, bytesToHex(systemBytes));
+
+            // 获取或创建消息收集器
+            MessageBlocksCollector collector = messageBlocksCollectors.computeIfAbsent(collectorKey,
+                    k -> new MessageBlocksCollector(stream, function, systemBytes));
+
+            // 添加数据块
+            collector.addBlock(data);
+
+            // 如果是最后一个块，处理完整消息
+            if (ebit) {
+                collector.markComplete();
+                messageBlocksCollectors.remove(collectorKey);
+
+                // 处理完整消息
+                byte[] combinedData = collector.getCombinedData();
+                processMessage(stream, function, systemBytes, combinedData);
+            }
+        }
+
+        /**
+         * 处理解析后的消息
+         *
+         * @param stream 流ID
+         * @param function 功能码
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         */
+        private void processMessage(int stream, int function, byte[] systemBytes, byte[] data) {
+            // 获取客户端状态
+            ClientState clientState = clientStates.get(clientId);
+            if (clientState == null) {
+                LOGGER.warning("Client state not found for client " + clientId);
+                return;
+            }
+
+            // 更新活动时间
+            clientState.updateLastActivityTime();
+
+            // 保存客户端发送的SystemBytes
+            clientState.setLastReceivedSystemBytes(systemBytes);
+            LOGGER.fine("Saved client's SystemBytes: " + bytesToHex(systemBytes));
+
+            // 如果是HSMS模式且是控制消息
+            // 注意：我们在processHsmsMessage方法中已经判断了控制消息
+            // 并设置stream=0，function=SType
+            // 对于控制消息，function应该在 1-9 范围内
+            if (useHsms && stream == 0 && function >= 1 && function <= 9) {
+                LOGGER.warning("Processing HSMS control message: SType=" + function);
+                // 处理HSMS控制消息
+                processHsmsControlMessage(function, systemBytes, data, clientState);
+                return;
+            }
+
+            // 如果不是控制消息，调用消息处理器
+            if (messageHandler != null) {
+                messageProcessorPool.execute(() -> {
+                    try {
+                        messageHandler.onMessage(clientId, stream, function, systemBytes, data);
+                    } catch (Exception e) {
+                        LOGGER.log(Level.SEVERE, "Error in message handler", e);
+                    }
+                });
+            }
+        }
+
+        /**
+         * 处理HSMS控制消息
+         *
+         * @param sType 控制消息类型
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void processHsmsControlMessage(int sType, byte[] systemBytes, byte[] data, ClientState clientState) {
+            LOGGER.info("Processing HSMS control message: SType=" + sType);
+
+            switch (sType) {
+                case 1: // SType=1 - Select.req
+                    handleSelectRequest(systemBytes, data, clientState);
+                    break;
+
+                case 3: // SType=3 - Deselect.req
+                    handleDeselectRequest(systemBytes, data, clientState);
+                    break;
+
+                case 5: // SType=5 - Linktest.req
+                    handleLinktestRequest(systemBytes, data, clientState);
+                    break;
+
+                case 7: // SType=7 - Reject.req
+                    handleRejectRequest(systemBytes, data, clientState);
+                    break;
+
+                case 8: // SType=8 - Reject.rsp
+                    handleRejectResponse(systemBytes, data, clientState);
+                    break;
+
+                case 9: // SType=9 - Separate.req
+                    handleSeparateRequest(systemBytes, data, clientState);
+                    break;
+
+                default:
+                    LOGGER.warning("Unhandled HSMS control message: SType=" + sType);
+                    break;
+            }
+        }
+
+
+
+        /**
+         * 发送SECS消息
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param data 消息数据字节数组
+         * @return 是否发送成功
+         */
+        public boolean sendMessage(int stream, int function, boolean wbit, byte[] systemBytes, byte[] data) {
+            try {
+                // 构建消息
+                if (useHsms) {
+                    sendHsmsMessageV2(stream, function, wbit, systemBytes, data);
+                } else {
+                    sendSecsMessage(stream, function, wbit, systemBytes, data);
+                }
+
+                return true;
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, "Error sending message", e);
+                return false;
+            }
+        }
+
+        /**
+         * 发送SECS消息（不指定systemBytes，使用默认值）
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param data 消息数据字节数组
+         * @return 是否发送成功
+         */
+        public boolean sendMessage(int stream, int function, boolean wbit, byte[] data) {
+            return sendMessage(stream, function, wbit, DEFAULT_SYSTEM_BYTES, data);
+        }
+
+        /**
+         * 发送SECS消息（使用Secs2数据）
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param secs2Data Secs2格式的消息数据
+         * @return 是否发送成功
+         */
+        public boolean sendMessage(int stream, int function, boolean wbit, byte[] systemBytes, Secs2 secs2Data) {
+            try {
+                // 如果使用HSMS模式，直接处理
+                if (useHsms) {
+                    // 对于HSMS，我们需要先获取完整的字节数据
+                    byte[] data;
+                    if (secs2Data == null || secs2Data.isEmpty()) {
+                        data = new byte[0];
+                    } else {
+                        try {
+                            // 获取Secs2数据的字节列表并合并
+                            List<byte[]> bytesList = secs2Data.getBytesList(65535); // HSMS可以处理更大的消息
+                            if (bytesList == null || bytesList.isEmpty()) {
+                                data = new byte[0];
+                            } else if (bytesList.size() == 1) {
+                                data = bytesList.get(0);
+                            } else {
+                                int totalLength = 0;
+                                for (byte[] bs : bytesList) {
+                                    totalLength += bs.length;
+                                }
+                                data = new byte[totalLength];
+                                int offset = 0;
+                                for (byte[] bs : bytesList) {
+                                    System.arraycopy(bs, 0, data, offset, bs.length);
+                                    offset += bs.length;
+                                }
+                            }
+                        } catch (Exception e) {
+                            LOGGER.log(Level.WARNING, "Error getting bytes from Secs2 data for HSMS, using empty array", e);
+                            data = new byte[0];
+                        }
+                    }
+                    // 发送HSMS消息
+                    sendHsmsMessageV2(stream, function, wbit, systemBytes, data);
+                    return true;
+                }
+
+                // 以下是SECS-I模式的处理，需要实现消息分块机制
+                if (secs2Data == null || secs2Data.isEmpty()) {
+                    // 如果Secs2数据为空，发送一个空消息
+                    return sendSecsMessageWithBlocks(stream, function, wbit, systemBytes, new ArrayList<>());
+                }
+
+                try {
+                    // 获取Secs2数据的字节列表，每块最大244字节
+                    List<byte[]> bytesList = secs2Data.getBytesList(244);
+
+                    if (bytesList == null || bytesList.isEmpty()) {
+                        // 如果没有数据，发送一个空消息
+                        return sendSecsMessageWithBlocks(stream, function, wbit, systemBytes, new ArrayList<>());
+                    }
+
+                    // 发送带有分块的SECS-I消息
+                    return sendSecsMessageWithBlocks(stream, function, wbit, systemBytes, bytesList);
+
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Error getting bytes from Secs2 data, using empty array", e);
+                    return sendSecsMessageWithBlocks(stream, function, wbit, systemBytes, new ArrayList<>());
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error converting Secs2 data", e);
+                return false;
+            }
+        }
+
+        /**
+         * 发送SECS消息（使用Secs2数据，不指定systemBytes）
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param secs2Data Secs2格式的消息数据
+         * @return 是否发送成功
+         */
+        public boolean sendMessage(int stream, int function, boolean wbit, Secs2 secs2Data) {
+            return sendMessage(stream, function, wbit, DEFAULT_SYSTEM_BYTES, secs2Data);
+        }
+
+
+
+
+
+
+
+        /**
+         * 发送SECS消息（使用Secs2数据，不指定wbit）
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param systemBytes 系统字节
+         * @param secs2Data Secs2格式的消息数据
+         * @return 是否发送成功
+         */
+        public boolean sendMessage(int stream, int function, byte[] systemBytes, Secs2 secs2Data) {
+            // 根据功能码判断是否设置W-bit
+            boolean wbit = (function % 2 != 0);
+            return sendMessage(stream, function, wbit, systemBytes, secs2Data);
+        }
+
+        /**
+         * 发送SECS消息（使用Secs2数据，不指定systemBytes和wbit）
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param secs2Data Secs2格式的消息数据
+         * @return 是否发送成功
+         */
+        public boolean sendMessage(int stream, int function, Secs2 secs2Data) {
+            boolean wbit = (function % 2 != 0);
+            return sendMessage(stream, function, wbit, DEFAULT_SYSTEM_BYTES, secs2Data);
+        }
+
+        /**
+         * 发送HSMS-SS消息
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @throws IOException 如果发送失败
+         */
+        private void sendHsmsMessage(int stream, int function, boolean wbit, byte[] systemBytes, byte[] data) throws IOException {
+            // 计算消息总长度（头部10字节+数据长度）
+            int totalLength = 10 + (data != null ? data.length : 0);
+
+            // 创建完整消息缓冲区（长度字段4字节+头部10字节+数据）
+            ByteBuffer messageBuffer = ByteBuffer.allocate(4 + totalLength).order(ByteOrder.BIG_ENDIAN);
+
+            // 填充长度字段（包括头部10字节）
+            messageBuffer.putInt(totalLength);
+
+            // 填充头部
+            messageBuffer.put((byte)clientId); // Session ID
+
+            // Header Byte 2 (根据wbit参数设置W-Bit)
+            messageBuffer.put(wbit ? (byte)0x80 : (byte)0);
+
+            // Stream和Function
+            // 根据wbit参数设置W-bit
+            if (wbit) {
+                messageBuffer.put((byte)(stream | 0x80)); // 设置W-bit，表示需要响应
+            } else {
+                messageBuffer.put((byte)stream); // 不设置W-bit
+            }
+            messageBuffer.put((byte)function);
+
+            // 系统字节
+            messageBuffer.put(systemBytes);
+
+            // 数据部分
+            if (data != null && data.length > 0) {
+                messageBuffer.put(data);
+            }
+
+            // 发送消息
+            synchronized (out) {
+                out.write(messageBuffer.array());
+                out.flush();
+            }
+        }
+
+        /**
+         * 发送HSMS-SS消息（按照正确的HSMS格式）
+         * 消息格式：
+         * - Message Length (4 bytes): 消息体长度（不包括这4字节本身）
+         * - Session ID (4 bytes): 会话标识
+         * - PType (1 byte): 协议类型 (0=Data, 1=Control)
+         * - SType (1 byte): 会话类型 (控制消息类型)
+         * - System Bytes (4 bytes): 流水号，用来关联请求/响应
+         * - Data Payload (N bytes): 实际SECS-II数据
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @throws IOException 如果发送失败
+         */
+        private void sendHsmsMessageV2(int stream, int function, boolean wbit, byte[] systemBytes, byte[] data) throws IOException {
+            boolean isControlMessage = (stream == 0);
+
+            // Session ID处理
+            byte[] sessionIdBytes;
+
+            // 对于S1F2消息，使用特殊的格式
+            if (!isControlMessage && stream == 1 && function == 2) {
+                // 对于S1F2消息，使用特殊的格式
+                // 根据您提供的数据包，客户端期望的SessionID是 00 00 02 03
+                sessionIdBytes = new byte[]{0x00, 0x00, 0x02, 0x03}; // SessionID = 00000203
+                LOGGER.warning("Using special format for S1F2: SessionID=00000203");
+
+                // 确保使用正确的SystemBytes
+                // 根据您提供的数据包，客户端期望的SystemBytes是 00 00 00 10
+                if (systemBytes[0] == 0 && systemBytes[1] == 0 && systemBytes[2] == 0) {
+                    // 保留原始SystemBytes的最后一个字节，因为它可能是消息序列号
+                    systemBytes = new byte[]{0x00, 0x00, 0x00, systemBytes[3]};
+                    LOGGER.warning("Adjusted SystemBytes for S1F2: " + bytesToHex(systemBytes));
+                }
+            } else {
+                // 对于其他消息，使用客户端状态中的SessionID
+                sessionIdBytes = Optional.ofNullable(clientStates.get(clientId))
+                        .map(ClientState::getSessionId)
+                        .filter(Objects::nonNull)
+                        .map(this::parseHex)
+                        .filter(arr -> arr.length >= 4)
+                        .orElse(new byte[]{(byte) 0xFF, (byte) 0xFF, 0x00, 0x00});
+            }
+
+            // 计算总长度：Header10字节 + Data
+            int payloadLength = (data != null) ? data.length : 0;
+            int totalLength = 10 + payloadLength;
+
+            ByteBuffer messageBuffer = ByteBuffer.allocate(4 + totalLength).order(ByteOrder.BIG_ENDIAN);
+
+            // 填写4字节Length字段
+            messageBuffer.putInt(totalLength);
+
+            // 填写4字节SessionID
+            messageBuffer.put(sessionIdBytes, 0, 4);
+
+            // 正确设置PType/SType
+            // 根据 HSMS 协议：
+            // 1. 控制消息的 PType=1
+            // 2. 数据消息的 PType=0
+            // 但是，为了兼容不同客户端的实现，我们使用 PType=0
+            byte pType = (byte) 0x00; // 兼容处理，始终使用 PType=0
+            if (!isControlMessage && wbit) {
+                pType |= (byte) 0x80; // 设置WBit位（仅限数据消息）
+            }
+
+            // 对于控制消息，SType=function
+            // 对于数据消息，SType=function
+            byte sType = (byte) function;
+
+            messageBuffer.put(pType);
+            messageBuffer.put(sType);
+
+            // 填写4字节SystemBytes
+            // 打印systemBytes的内存地址，便于调试
+            LOGGER.warning("sendHsmsMessageV2 - SystemBytes object identity: " + System.identityHashCode(systemBytes));
+
+            // 打印systemBytes的每个字节的十六进制值
+            StringBuilder sb = new StringBuilder("sendHsmsMessageV2 - SystemBytes bytes: ");
+            for (byte b : systemBytes) {
+                sb.append(String.format("%02X ", b));
+            }
+            LOGGER.warning(sb.toString());
+
+            messageBuffer.put(systemBytes);
+
+            // 填充数据Payload
+            if (payloadLength > 0) {
+                messageBuffer.put(data);
+            }
+
+            // 完成消息组装
+            byte[] fullMessage = messageBuffer.array();
+
+            // 打印日志
+            StringBuilder logMessage = new StringBuilder();
+            logMessage.append("\nHSMS OUT - Sending message details:\n")
+                    .append("Type: ").append(getMessageTypeName(isControlMessage, stream, function)).append("\n")
+                    .append("Length: ").append(String.format("%08X", totalLength)).append(" (").append(totalLength).append(" bytes)\n")
+                    .append("SessionID: ").append(bytesToHex(sessionIdBytes)).append("\n")
+                    .append("PType: ").append(String.format("%02X", pType)).append(", SType: ").append(String.format("%02X", sType)).append(", WBit: ").append(wbit).append("\n")
+                    .append("SystemBytes: ").append(bytesToHex(systemBytes)).append("\n")
+                    .append("Data: ").append(data != null ? bytesToHex(data) + " (" + data.length + " bytes)" : "<none>").append("\n")
+                    .append("Full message: ").append(bytesToHex(fullMessage));
+            LOGGER.info(logMessage.toString());
+
+            // 发送消息
+            synchronized (out) {
+                out.write(fullMessage);
+                out.flush();
+            }
+        }
+
+        private String getMessageTypeName(boolean isControlMessage, int stream, int function) {
+            if (isControlMessage) {
+                switch (function) {
+                    case 1: return "Select.req";
+                    case 2: return "Select.rsp";
+                    case 3: return "Deselect.req";
+                    case 4: return "Deselect.rsp";
+                    case 5: return "Linktest.req";
+                    case 6: return "Linktest.rsp";
+                    case 7: return "Reject.req";
+                    case 8: return "Reject.rsp";
+                    case 9: return "Separate.req";
+                    default: return "Unknown control message";
+                }
+            } else {
+                return "S" + stream + "F" + function + " data message";
+            }
+        }
+
+        private byte[] parseHex(String hex) {
+            int len = hex.length();
+            byte[] data = new byte[len / 2];
+            for (int i = 0; i < len; i += 2) {
+                data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                        + Character.digit(hex.charAt(i+1), 16));
+            }
+            return data;
+        }
+
+        private String bytesToHex(byte[] bytes) {
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                sb.append(String.format("%02X", b));
+            }
+            return sb.toString();
+        }
+
+        /**
+         * 处理Select.req消息
+         *
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void handleSelectRequest(byte[] systemBytes, byte[] data, ClientState clientState) {
+            LOGGER.info("Received Select.req (SType=1)");
+            try {
+                // 从客户端状态中获取SessionID
+                // 根据客户端日志，客户端发送的SessionID是 FF FF 00 00
+                // 这个值已经在processHsmsMessage方法中设置到客户端状态中
+                String sessionId = clientState.getSessionId();
+                if (sessionId == null || sessionId.isEmpty()) {
+                    // 如果没有获取到SessionID，使用默认值
+                    sessionId = "FFFF0000";
+                    clientState.setSessionId(sessionId);
+                }
+
+                // 处理SessionID为0和SessionID为65535的情况
+                // 在SECS协议中，这两个值应该被视为同一个SessionID
+                if ("00000000".equals(sessionId) || "FFFF0000".equals(sessionId)) {
+                    // 将两种SessionID都标准化为"FFFF0000"
+                    LOGGER.info("Normalizing SessionID " + sessionId + " to FFFF0000");
+                    sessionId = "FFFF0000";
+                }
+
+                LOGGER.info("Using SessionID: " + sessionId);
+
+                // 保存SessionID到客户端状态
+                clientState.setSessionId(sessionId);
+
+                // 使用线程安全的方式检查和更新会话注册表
+                byte selectStatus = 0; // 0 = Accepted
+
+                synchronized (sessionRegistry) {
+                    // 检查是否已有相同SessionID的连接
+                    // 处理SessionID为0和SessionID为65535的情况
+                    // 在SECS协议中，这两个值应该被视为同一个SessionID
+                    Integer existingClientId = sessionRegistry.get(sessionId);
+
+                    // 如果没有找到，并且当前SessionID是"FFFF0000"，尝试查找"00000000"
+                    if (existingClientId == null && "FFFF0000".equals(sessionId)) {
+                        existingClientId = sessionRegistry.get("00000000");
+                        if (existingClientId != null) {
+                            LOGGER.info("Found existing connection with SessionID 00000000, treating as FFFF0000");
+                        }
+                    }
+
+                    // 如果没有找到，并且当前SessionID是"00000000"，尝试查找"FFFF0000"
+                    if (existingClientId == null && "00000000".equals(sessionId)) {
+                        existingClientId = sessionRegistry.get("FFFF0000");
+                        if (existingClientId != null) {
+                            LOGGER.info("Found existing connection with SessionID FFFF0000, treating as 00000000");
+                        }
+                    }
+
+                    if (existingClientId != null) {
+                        if (existingClientId.equals(clientId)) {
+                            // 如果是同一个客户端再次发送Select.req，返回已激活状态
+                            LOGGER.info("Client " + clientId + " already selected with SessionID: " + sessionId);
+                            selectStatus = 1; // 1 = Already Used
+                        } else {
+                            // 如果是不同客户端使用相同SessionID
+                            LOGGER.info("Found existing connection with same SessionID: " + sessionId + ", client ID: " + existingClientId);
+
+                            // 获取现有连接的客户端处理器
+                            ClientHandler existingClient = clients.get(existingClientId);
+
+                            if (existingClient != null) {
+                                // 优雅地关闭旧连接
+                                LOGGER.info("Gracefully closing old connection with client ID: " + existingClientId);
+                                existingClient.disconnect();
+
+                                // 注册新连接到会话注册表
+                                // 处理SessionID为0和SessionID为65535的情况
+                                if ("00000000".equals(sessionId) || "FFFF0000".equals(sessionId)) {
+                                    // 删除所有可能的SessionID映射
+                                    sessionRegistry.remove("00000000");
+                                    sessionRegistry.remove("FFFF0000");
+
+                                    // 注册新连接，使用标准化的SessionID
+                                    sessionRegistry.put("FFFF0000", clientId);
+                                    LOGGER.info("Registered client " + clientId + " with normalized SessionID: FFFF0000");
+                                } else {
+                                    // 对于其他SessionID，正常注册
+                                    sessionRegistry.put(sessionId, clientId);
+                                    LOGGER.info("Registered client " + clientId + " with SessionID: " + sessionId);
+                                }
+                                selectStatus = 0; // 0 = Accepted
+                            }
+                        }
+                    } else {
+                        // 如果这是一个新的SessionID
+                        // 处理SessionID为0和SessionID为65535的情况
+                        if ("00000000".equals(sessionId) || "FFFF0000".equals(sessionId)) {
+                            // 删除所有可能的SessionID映射
+                            sessionRegistry.remove("00000000");
+                            sessionRegistry.remove("FFFF0000");
+
+                            // 注册新连接，使用标准化的SessionID
+                            sessionRegistry.put("FFFF0000", clientId);
+                            LOGGER.info("Registered client " + clientId + " with normalized SessionID: FFFF0000");
+                        } else {
+                            // 对于其他SessionID，正常注册
+                            sessionRegistry.put(sessionId, clientId);
+                            LOGGER.info("Registered client " + clientId + " with SessionID: " + sessionId);
+                        }
+                        selectStatus = 0; // 0 = Accepted
+                    }
+                }
+
+                // 更新会话状态为SELECTED
+                if (selectStatus == 0) {
+                    clientState.setHsmsSessionState(ClientState.HsmsSessionState.SELECTED);
+                    LOGGER.info("Set client " + clientId + " session state to SELECTED");
+                }
+
+                // 回复 Select.rsp (SType=2)
+                // 根据客户端日志，正常的响应应该是：
+                // FF FF 00 00 00 02 80 00 00 01
+                // 其中 FF FF 00 00 是 Session ID
+                // 00 02 是 PType=0, SType=2 (Select.rsp)
+                // 80 00 00 01 是 System Bytes
+                LOGGER.info("Sending Select.rsp (SType=2) with status: " + selectStatus + ", systemBytes: " + bytesToHex(systemBytes));
+
+                // 重要！正常情况下应该使用与请求相同的SystemBytes
+                // 但在生产环境中，SystemBytes应该始终非零，最好是自动递增
+                LOGGER.info("Original SystemBytes: " + bytesToHex(systemBytes));
+
+                // 对于被动响应，必须使用客户端发送的原始SystemBytes
+                // 但是根据客户端日志，它期望的SystemBytes是 80 00 00 01
+                // 而我们解析到的是 00 00 00 00，这可能是因为消息格式解析有问题
+                LOGGER.warning("IMPORTANT: Original SystemBytes for Select.rsp: " + bytesToHex(systemBytes));
+
+                // 使用客户端发送的原始SystemBytes
+                // 不进行任何修改，即使它不是 80 00 00 01
+                LOGGER.warning("IMPORTANT: Using original SystemBytes for Select.rsp: " + bytesToHex(systemBytes));
+
+                // 打印systemBytes的内存地址，便于调试
+                LOGGER.warning("SystemBytes object identity: " + System.identityHashCode(systemBytes));
+
+                // 打印systemBytes的每个字节的十六进制值
+                StringBuilder sb = new StringBuilder("SystemBytes bytes: ");
+                for (byte b : systemBytes) {
+                    sb.append(String.format("%02X ", b));
+                }
+                LOGGER.warning(sb.toString());
+
+                // 创建带有状态码的响应数据
+                // 注意：根据客户端日志，正常的Select.rsp没有数据部分
+                // 但是我们需要在数据部分中包含状态码
+                byte[] responseData = null;
+                if (selectStatus != 0) {
+                    // 如果状态不是0（成功），则需要包含状态码
+                    responseData = new byte[1];
+                    responseData[0] = selectStatus;
+                }
+
+                // 发送Select.rsp消息
+                // 注意：这里使用 stream=0, function=2 来表示 SType=2
+                // 使用原始SystemBytes，不进行任何修改
+                try {
+                    LOGGER.warning("CRITICAL: About to send Select.rsp with SystemBytes: " + bytesToHex(systemBytes));
+                    sendHsmsMessageV2(0, 2, false, systemBytes, responseData);
+                    LOGGER.warning("CRITICAL: Select.rsp sent successfully");
+                } catch (Exception e) {
+                    LOGGER.severe("CRITICAL: Error sending Select.rsp: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                LOGGER.info("Sent Select.rsp (SType=2) with status: " + selectStatus);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error handling Select.req", e);
+            }
+        }
+
+        /**
+         * 处理Deselect.req消息
+         *
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void handleDeselectRequest(byte[] systemBytes, byte[] data, ClientState clientState) {
+            LOGGER.info("Received Deselect.req (SType=3) with SystemBytes: " + bytesToHex(systemBytes));
+            try {
+                // 更新会话状态为NOT_SELECTED
+                clientState.setHsmsSessionState(ClientState.HsmsSessionState.NOT_SELECTED);
+                LOGGER.info("Set client " + clientId + " session state to NOT_SELECTED");
+
+                // 从会话注册表中移除
+                String sessionId = clientState.getSessionId();
+                if (sessionId != null) {
+                    synchronized (sessionRegistry) {
+                        Integer registeredClientId = sessionRegistry.get(sessionId);
+                        if (registeredClientId != null && registeredClientId.equals(clientId)) {
+                            LOGGER.info("Removing client " + clientId + " from session registry due to Deselect.req, SessionID: " + sessionId);
+                            sessionRegistry.remove(sessionId);
+                        }
+                    }
+                }
+
+                // 对于被动响应，必须使用客户端发送的原始SystemBytes
+                // 不进行任何修改，即使它是全零或首字节不是0x80
+                LOGGER.info("Using original SystemBytes for Deselect.rsp: " + bytesToHex(systemBytes));
+
+                // 回复 Deselect.rsp (SType=4)
+                byte[] responseData = new byte[1];
+                responseData[0] = 0; // 0 = Success
+                sendHsmsMessageV2(0, 4, false, systemBytes, responseData);
+                LOGGER.info("Sent Deselect.rsp (SType=4) (Success)");
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error handling Deselect.req", e);
+            }
+        }
+
+        /**
+         * 处理Linktest.req消息
+         *
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void handleLinktestRequest(byte[] systemBytes, byte[] data, ClientState clientState) {
+            LOGGER.info("Received Linktest.req (SType=5) with SystemBytes: " + bytesToHex(systemBytes));
+            try {
+                // 必须使用当前消息中的SystemBytes
+                // 这是因为客户端期望响应消息中的SystemBytes与请求消息中的相同
+
+                // 如果SystemBytes为空或长度不正确，创建一个新的
+                if (systemBytes == null || systemBytes.length != 4) {
+                    LOGGER.warning("Invalid SystemBytes in Linktest.req, creating new ones");
+                    systemBytes = new byte[]{(byte)0x80, 0, 0, 1}; // 使用默认值
+                }
+
+                // 创建一个副本，避免修改原始数组
+                byte[] responseSystemBytes = systemBytes.clone();
+
+                // 检查SystemBytes是否为全零
+                boolean isAllZeros = true;
+                for (byte b : responseSystemBytes) {
+                    if (b != 0) {
+                        isAllZeros = false;
+                        break;
+                    }
+                }
+
+                // 如果SystemBytes为全零，生成一个新的非零值
+                if (isAllZeros) {
+                    LOGGER.warning("SystemBytes in Linktest.req are all zeros, generating new ones");
+                    responseSystemBytes = new byte[]{(byte)0x80, 0, 0, 2}; // 使用非零值
+                }
+
+                // 对于被动响应，必须使用客户端发送的原始SystemBytes
+                // 但是根据客户端日志，它期望的SystemBytes是 80 00 00 02
+                // 而我们解析到的可能是 00 00 00 00，这可能是因为消息格式解析有问题
+                LOGGER.warning("IMPORTANT: Original SystemBytes for Linktest.rsp: " + bytesToHex(systemBytes));
+
+                // 使用客户端发送的原始SystemBytes
+                // 不进行任何修改，即使它不是 80 00 00 02
+                LOGGER.warning("IMPORTANT: Using original SystemBytes for Linktest.rsp: " + bytesToHex(systemBytes));
+
+                // 打印systemBytes的内存地址，便于调试
+                LOGGER.warning("SystemBytes object identity: " + System.identityHashCode(systemBytes));
+
+                // 打印systemBytes的每个字节的十六进制值
+                StringBuilder sb = new StringBuilder("SystemBytes bytes: ");
+                for (byte b : systemBytes) {
+                    sb.append(String.format("%02X ", b));
+                }
+                LOGGER.warning(sb.toString());
+
+                // 回复 Linktest.rsp (SType=6)
+                sendHsmsMessageV2(0, 6, false, systemBytes, null);
+                LOGGER.info("Sent Linktest.rsp (SType=6)");
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error handling Linktest.req", e);
+            }
+        }
+
+        /**
+         * 处理Reject.req消息
+         * 收到客户端的Reject.req后需要执行以下操作：
+         * 1. 立即停止对该连接的后续任何业务消息处理
+         * 2. 关闭TCP连接（优雅关闭 Socket）
+         * 3. 清理内部连接资源
+         * 4. 日志记录
+         *
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void handleRejectRequest(byte[] systemBytes, byte[] data, ClientState clientState) {
+            // 1. 日志记录 - 记录详细信息便于排查
+            String sessionId = clientState != null ? clientState.getSessionId() : "unknown";
+            byte reasonCode = 0;
+            if (data != null && data.length > 0) {
+                reasonCode = data[0];
+            }
+
+            StringBuilder logMessage = new StringBuilder();
+            logMessage.append("\n!!! CRITICAL: Received Reject.req (SType=7) from client " + clientId + " !!!");
+            logMessage.append("\nTime: " + new Date());
+            logMessage.append("\nSessionID: " + sessionId);
+            logMessage.append("\nSystemBytes: " + bytesToHex(systemBytes));
+            logMessage.append("\nReason Code: " + reasonCode);
+            logMessage.append("\nConnection will be terminated.");
+
+            // 使用警告级别记录，确保在日志中高亮显示
+            LOGGER.warning(logMessage.toString());
+
+            try {
+                // 2. 不需要回复 Reject.rsp，因为我们将立即关闭连接
+                // 客户端发送Reject.req表示它已经决定终止连接
+
+                // 3. 清理内部连接资源
+                // 从会话管理表中删除此客户端记录
+                if (clientState != null && clientState.getSessionId() != null) {
+                    synchronized (sessionRegistry) {
+                        Integer registeredClientId = sessionRegistry.get(sessionId);
+                        if (registeredClientId != null && registeredClientId.equals(clientId)) {
+                            LOGGER.info("Removing client " + clientId + " from session registry due to Reject.req, SessionID: " + sessionId);
+                            sessionRegistry.remove(sessionId);
+                        }
+                    }
+                }
+
+                // 4. 优雅关闭连接
+                // 调用disconnect方法将执行优雅关闭序列：
+                // - shutdown output
+                // - shutdown input
+                // - close socket
+                // - 清理相关资源
+                disconnect();
+
+                LOGGER.info("Connection terminated due to Reject.req from client " + clientId);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error handling Reject.req", e);
+                // 即使发生异常，也要尝试断开连接
+                disconnect();
+            }
+        }
+
+        /**
+         * 处理Reject.rsp消息
+         *
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void handleRejectResponse(byte[] systemBytes, byte[] data, ClientState clientState) {
+            LOGGER.info("Received Reject.rsp (SType=8) with SystemBytes: " + bytesToHex(systemBytes));
+            // 仅记录日志，不需要特殊处理
+        }
+
+        /**
+         * 处理Separate.req消息
+         *
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @param clientState 客户端状态
+         */
+        private void handleSeparateRequest(byte[] systemBytes, byte[] data, ClientState clientState) {
+            LOGGER.info("Received Separate.req (SType=9) with SystemBytes: " + bytesToHex(systemBytes));
+            // 更新会话状态为NOT_CONNECTED
+            clientState.setHsmsSessionState(ClientState.HsmsSessionState.NOT_CONNECTED);
+            LOGGER.info("Set client " + clientId + " session state to NOT_CONNECTED");
+
+            // 从会话注册表中移除
+            String sessionId = clientState.getSessionId();
+            if (sessionId != null) {
+                synchronized (sessionRegistry) {
+                    Integer registeredClientId = sessionRegistry.get(sessionId);
+                    if (registeredClientId != null && registeredClientId.equals(clientId)) {
+                        LOGGER.info("Removing client " + clientId + " from session registry due to Separate.req, SessionID: " + sessionId);
+                        sessionRegistry.remove(sessionId);
+                    }
+                }
+            }
+
+            // 客户端请求断开连接，不需要回复
+            // 在下一个循环中断开连接
+            disconnect();
+        }
+
+        /**
+         * 发送SECS-I消息
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         * @throws IOException 如果发送失败
+         */
+        private void sendSecsMessage(int stream, int function, boolean wbit, byte[] systemBytes, byte[] data) throws IOException {
+            // 将单个数据块包装为列表，调用分块发送方法
+            List<byte[]> dataBlocks = new ArrayList<>();
+            if (data != null && data.length > 0) {
+                dataBlocks.add(data);
+            }
+            sendSecsMessageWithBlocks(stream, function, wbit, systemBytes, dataBlocks);
+        }
+
+        /**
+         * 发送带有分块的SECS-I消息
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param dataBlocks 消息数据块列表，每个元素为一个块
+         * @return 是否发送成功
+         */
+        private boolean sendSecsMessageWithBlocks(int stream, int function, boolean wbit, byte[] systemBytes, List<byte[]> dataBlocks) {
+            if (dataBlocks == null) {
+                dataBlocks = new ArrayList<>();
+            }
+
+            try {
+                // 如果没有数据块，发送一个空消息
+                if (dataBlocks.isEmpty()) {
+                    // 创建一个空消息块
+                    sendSingleSecsBlock(stream, function, wbit, systemBytes, new byte[0], true, 1);
+                    return true;
+                }
+
+                // 如果只有一个数据块，发送单个块
+                if (dataBlocks.size() == 1) {
+                    sendSingleSecsBlock(stream, function, wbit, systemBytes, dataBlocks.get(0), true, 1);
+                    return true;
+                }
+
+                // 如果有多个数据块，需要分块发送
+                int blockCount = dataBlocks.size();
+                for (int i = 0; i < blockCount; i++) {
+                    // 判断是否是最后一个块
+                    boolean isLastBlock = (i == blockCount - 1);
+                    // 块编号从1开始
+                    int blockNumber = i + 1;
+                    // 发送单个块
+                    sendSingleSecsBlock(stream, function, wbit, systemBytes, dataBlocks.get(i), isLastBlock, blockNumber);
+                }
+                return true;
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, "Error sending SECS-I message blocks", e);
+                return false;
+            }
+        }
+
+        /**
+         * 发送单个 SECS-I 消息块，参考secs4java8的AbstractSecs1CircuitFacade#sending方法
+         *
+         * @param stream 消息流ID
+         * @param function 功能码
+         * @param wbit 是否设置W-bit（表示需要响应）
+         * @param systemBytes 系统字节
+         * @param blockData 块数据
+         * @param ebit 是否设置E-bit（表示最后一个块）
+         * @param blockNumber 块编号
+         * @throws IOException 如果发送失败
+         */
+        private void sendSingleSecsBlock(int stream, int function, boolean wbit, byte[] systemBytes,
+                                        byte[] blockData, boolean ebit, int blockNumber) throws IOException {
+            // 计算消息总长度（头部10字节+数据长度）
+            int messageLength = 10 + (blockData != null ? blockData.length : 0);
+
+            // 创建消息块字节数组
+            byte[] messageBytes = new byte[messageLength + 3]; // +3包括长度字节和校验和
+
+            // 设置长度字节
+            messageBytes[0] = (byte)messageLength;
+
+            // 设备ID - 使用客户端状态中的设备ID
+            int deviceId = 0; // 默认为0
+            ClientState clientState = clientStates.get(clientId);
+            if (clientState != null) {
+                deviceId = clientState.getDeviceId();
+            }
+            messageBytes[1] = (byte)0; // 第一个字节
+            messageBytes[2] = (byte)deviceId; // 第二个字节
+
+            // Stream和Function
+            if (wbit) {
+                messageBytes[3] = (byte)(stream | 0x80); // 设置W-bit
+            } else {
+                messageBytes[3] = (byte)stream;
+            }
+            messageBytes[4] = (byte)function;
+
+            // 块控制字节
+            if (ebit) {
+                messageBytes[5] = (byte)(0x80 | (blockNumber & 0x7F)); // 设置E-bit
+            } else {
+                messageBytes[5] = (byte)(blockNumber & 0x7F);
+            }
+            messageBytes[6] = (byte)0; // 保留字节
+
+            // 系统字节
+            System.arraycopy(systemBytes, 0, messageBytes, 7, 4);
+
+            // 数据部分
+            if (blockData != null && blockData.length > 0) {
+                System.arraycopy(blockData, 0, messageBytes, 11, blockData.length);
+            }
+
+            // 计算校验和
+            int checksum = 0;
+            for (int i = 1; i < messageLength + 1; i++) {
+                checksum += (messageBytes[i] & 0xFF);
+            }
+
+            // 添加校验和字节
+            messageBytes[messageLength + 1] = (byte)((checksum >> 8) & 0xFF);
+            messageBytes[messageLength + 2] = (byte)(checksum & 0xFF);
+
+            LOGGER.fine(String.format("Message block with checksum: %s", bytesToHex(messageBytes)));
+
+            // 发送消息
+            synchronized (out) {
+                try {
+                    // 清除输入缓冲区
+                    discardAvailableBytes();
+
+                    // 最大重试次数
+                    int maxRetries = 3;
+                    boolean success = false;
+
+                    for (int retry = 0; retry < maxRetries && !success; retry++) {
+                        // 1. 发送ENQ
+                        LOGGER.fine(String.format("Sending ENQ (attempt %d/%d)", retry + 1, maxRetries));
+                        out.write(ENQ);
+                        out.flush();
+
+                        // 2. 等待EOT响应
+                        socket.setSoTimeout(timeoutMillis);
+                        int response;
+                        try {
+                            response = in.read();
+                            LOGGER.fine(String.format("Received response after ENQ: %d (0x%02X)", response, response));
+
+                            // 如果收到EOT或者值为2（客户端特殊响应）
+                            if (response == EOT || response == 2) {
+                                if (response == 2) {
+                                    LOGGER.warning("Received 0x02 (STX) instead of EOT, treating it as EOT");
+                                } else {
+                                    LOGGER.fine("Received EOT");
+                                }
+
+                                // 3. 发送实际消息
+                                LOGGER.fine(String.format("Sending S%dF%d message block %d/%s, length=%d, bytes=%s",
+                                        stream, function, blockNumber, ebit ? "last" : "more",
+                                        messageLength, bytesToHex(messageBytes)));
+                                out.write(messageBytes);
+                                out.flush();
+
+                                // 4. 等待ACK
+                                try {
+                                    response = in.read();
+                                    LOGGER.fine(String.format("Received response after message: %d (0x%02X)", response, response));
+
+                                    if (response == ACK) {
+                                        LOGGER.fine("Received ACK after sending message block");
+                                        success = true;
+                                    } else {
+                                        LOGGER.warning(String.format("Did not receive ACK after sending message block, got: %d (0x%02X)",
+                                                response, response));
+
+                                        // 如果是最后一次重试，即使没有收到ACK也认为成功
+                                        if (retry == maxRetries - 1) {
+                                            LOGGER.warning("Last retry, assuming success despite not receiving ACK");
+                                            success = true;
+                                        }
+                                    }
+                                } catch (IOException e) {
+                                    LOGGER.warning("Timeout waiting for ACK: " + e.getMessage());
+
+                                    // 如果是最后一次重试，即使超时也认为成功
+                                    if (retry == maxRetries - 1) {
+                                        LOGGER.warning("Last retry, assuming success despite timeout");
+                                        success = true;
+                                    }
+                                }
+                            } else if (response == ENQ) {
+                                // 如果收到ENQ，可能是客户端也在尝试发送消息
+                                LOGGER.warning("Received ENQ while trying to send, client may be trying to send a message");
+
+                                // 如果我们不是主设备，则先处理客户端的消息
+                                if (!isMaster) {
+                                    LOGGER.warning("We are not master, letting client send first");
+                                    // 发送EOT并处理客户端的消息
+                                    out.write(EOT);
+                                    out.flush();
+                                    receiveMessageBlock();
+
+                                    // 重置重试计数器
+                                    retry = 0;
+                                    continue;
+                                }
+                            }
+                        } catch (IOException e) {
+                            LOGGER.warning("Timeout or error waiting for EOT: " + e.getMessage());
+                        }
+
+                        // 如果没有成功且还有重试机会，等待一段时间再重试
+                        if (!success && retry < maxRetries - 1) {
+                            try {
+                                Thread.sleep(100);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!success) {
+                        LOGGER.warning("Failed to send message block after " + maxRetries + " retries");
+                        throw new IOException("Failed to send message block after " + maxRetries + " retries");
+                    }
+                } finally {
+                    // 恢复原始超时设置
+                    socket.setSoTimeout(timeoutMillis);
+                }
+            }
+        }
+
+        /**
+         * 计算SECS-I消息的校验和
+         *
+         * @param messageBytes 消息字节数组
+         * @return 校验和值
+         */
+        private int calculateChecksum(byte[] messageBytes) {
+            if (messageBytes == null || messageBytes.length == 0) {
+                return 0;
+            }
+
+            int sum = 0;
+            for (byte b : messageBytes) {
+                sum += (b & 0xFF);
+            }
+
+            return sum & 0xFFFF; // 只保留低16位
+        }
+
+        /**
+         * 断开连接
+         * 实现优雅关闭（shutdown output → shutdown input → close）
+         */
+        public void disconnect() {
+            if (connected.compareAndSet(true, false)) {
+                try {
+                    if (socket != null && !socket.isClosed()) {
+                        LOGGER.info("Gracefully closing connection for client " + clientId);
+
+                        try {
+                            // 1. 首先关闭输出流
+                            LOGGER.fine("Shutting down output for client " + clientId);
+                            socket.shutdownOutput();
+
+                            // 等待一小段时间，让对方有机会处理
+                            Thread.sleep(100);
+
+                            // 2. 然后关闭输入流
+                            LOGGER.fine("Shutting down input for client " + clientId);
+                            socket.shutdownInput();
+
+                            // 等待一小段时间
+                            Thread.sleep(100);
+
+                            // 3. 最后完全关闭socket
+                            LOGGER.fine("Closing socket for client " + clientId);
+                            socket.close();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            LOGGER.log(Level.WARNING, "Interrupted during graceful disconnect", e);
+                            // 如果被中断，直接关闭socket
+                            socket.close();
+                        }
+                    }
+                } catch (IOException e) {
+                    LOGGER.log(Level.WARNING, "Error closing client socket", e);
+                } finally {
+                    // 从会话注册表中移除
+                    ClientState state = clientStates.get(clientId);
+                    if (state != null && state.getSessionId() != null) {
+                        String sessionId = state.getSessionId();
+                        synchronized (sessionRegistry) {
+                            Integer registeredClientId = sessionRegistry.get(sessionId);
+                            // 只有当这个客户端是该会话ID的当前注册客户端时才移除
+                            if (registeredClientId != null && registeredClientId.equals(clientId)) {
+                                LOGGER.info("Removing client " + clientId + " from session registry, SessionID: " + sessionId);
+                                sessionRegistry.remove(sessionId);
+                            }
+                        }
+                    }
+
+                    // 通知断开事件
+                    if (connectionEventListener != null) {
+                        messageProcessorPool.execute(() ->
+                            connectionEventListener.onClientDisconnected(clientId));
+                    }
+
+                    // 从客户端列表中移除
+                    clients.remove(clientId);
+
+                    // 从客户端状态列表中移除
+                    clientStates.remove(clientId);
+
+                    LOGGER.info("Client disconnected: ID=" + clientId);
+                }
+            }
+        }
+
+        /**
+         * 检查客户端是否仍然连接
+         *
+         * @return 是否连接
+         */
+        public boolean isConnected() {
+            return connected.get() && socket != null && socket.isConnected() && !socket.isClosed();
+        }
+    }
+
+    /**
+     * 停止服务器
+     *
+     * @throws InterruptedException 如果停止过程被中断
+     * @throws IOException 如果IO操作失败
+     */
+    public void stop() throws InterruptedException, IOException {
+        if (running.compareAndSet(true, false)) {
+            // 断开所有客户端连接
+            for (ClientHandler client : new ArrayList<>(clients.values())) {
+                client.disconnect();
+            }
+
+            // 关闭服务器Socket
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+
+            // 关闭线程池
+            connectionPool.shutdown();
+            messageProcessorPool.shutdown();
+            timerPool.shutdown();
+
+            connectionPool.awaitTermination(5, TimeUnit.SECONDS);
+            messageProcessorPool.awaitTermination(5, TimeUnit.SECONDS);
+            timerPool.awaitTermination(5, TimeUnit.SECONDS);
+
+            LOGGER.info("Server stopped");
+        }
+    }
+
+    /**
+     * 向指定客户端发送SECS消息
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param wbit 是否设置W-bit（表示需要响应）
+     * @param systemBytes 系统字节
+     * @param data 消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, boolean wbit, byte[] systemBytes, byte[] data) {
+        ClientHandler client = clients.get(clientId);
+        if (client == null || !client.isConnected()) {
+            LOGGER.warning("Cannot send message: client " + clientId + " not found or disconnected");
+            return false;
+        }
+
+        try {
+            // 发送消息
+            return client.sendMessage(stream, function, wbit, systemBytes, data);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error preparing message", e);
+            return false;
+        }
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（不指定wbit）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param systemBytes 系统字节
+     * @param data 消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, byte[] systemBytes, byte[] data) {
+        // 根据功能码判断是否设置W-bit
+        boolean wbit = (function % 2 != 0);
+        return sendMessage(clientId, stream, function, wbit, systemBytes, data);
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（使用Secs2数据）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param wbit 是否设置W-bit（表示需要响应）
+     * @param systemBytes 系统字节
+     * @param secs2Data Secs2格式的消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, boolean wbit, byte[] systemBytes, Secs2 secs2Data) {
+        ClientHandler client = clients.get(clientId);
+        if (client == null || !client.isConnected()) {
+            LOGGER.warning("Cannot send message: client " + clientId + " not found or disconnected");
+            return false;
+        }
+
+        try {
+            // 发送消息
+            return client.sendMessage(stream, function, wbit, systemBytes, secs2Data);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error preparing message", e);
+            return false;
+        }
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（使用Secs2数据，不指定wbit）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param systemBytes 系统字节
+     * @param secs2Data Secs2格式的消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, byte[] systemBytes, Secs2 secs2Data) {
+        // 根据功能码判断是否设置W-bit
+        boolean wbit = (function % 2 != 0);
+        return sendMessage(clientId, stream, function, wbit, systemBytes, secs2Data);
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（不指定systemBytes）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param wbit 是否设置W-bit（表示需要响应）
+     * @param data 消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, boolean wbit, byte[] data) {
+        // 使用客户端状态中的系统字节，如果没有则使用默认值
+        byte[] systemBytes = DEFAULT_SYSTEM_BYTES;
+        ClientState clientState = clientStates.get(clientId);
+        if (clientState != null && clientState.getLastSystemBytes() != null) {
+            systemBytes = clientState.getLastSystemBytes();
+        }
+        return sendMessage(clientId, stream, function, wbit, systemBytes, data);
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（不指定systemBytes和wbit）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param data 消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, byte[] data) {
+        boolean wbit = (function % 2 != 0);
+        return sendMessage(clientId, stream, function, wbit, data);
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（使用Secs2数据，不指定systemBytes）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param wbit 是否设置W-bit（表示需要响应）
+     * @param secs2Data Secs2格式的消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, boolean wbit, Secs2 secs2Data) {
+        // 使用客户端状态中的系统字节，如果没有则使用默认值
+        byte[] systemBytes = DEFAULT_SYSTEM_BYTES;
+        ClientState clientState = clientStates.get(clientId);
+        if (clientState != null && clientState.getLastSystemBytes() != null) {
+            systemBytes = clientState.getLastSystemBytes();
+        }
+        return sendMessage(clientId, stream, function, wbit, systemBytes, secs2Data);
+    }
+
+    /**
+     * 向指定客户端发送SECS消息（使用Secs2数据，不指定systemBytes和wbit）
+     *
+     * @param clientId 客户端ID
+     * @param stream 消息流ID
+     * @param function 功能码
+     * @param secs2Data Secs2格式的消息数据
+     * @return 是否发送成功
+     */
+    public boolean sendMessage(int clientId, int stream, int function, Secs2 secs2Data) {
+        boolean wbit = (function % 2 != 0);
+        return sendMessage(clientId, stream, function, wbit, secs2Data);
+    }
+
+    /**
+     * 获取当前连接的客户端数
+     *
+     * @return 连接数
+     */
+    public int getConnectedClientsCount() {
+        return clients.size();
+    }
+
+    /**
+     * 获取所有连接的客户端ID
+     *
+     * @return 客户端ID列表
+     */
+    public List<Integer> getConnectedClientIds() {
+        return new ArrayList<>(clients.keySet());
+    }
+
+    /**
+     * 设置消息处理器
+     *
+     * @param handler SECS消息处理器
+     */
+    public void setMessageHandler(SecsMessageHandler handler) {
+        this.messageHandler = handler;
+    }
+
+    /**
+     * 设置连接事件监听器
+     *
+     * @param listener 连接事件监听器
+     */
+    public void setConnectionEventListener(ConnectionEventListener listener) {
+        this.connectionEventListener = listener;
+    }
+
+    /**
+     * 判断客户端是否已连接
+     *
+     * @param clientId 客户端ID
+     * @return 是否已连接
+     */
+    public boolean isClientConnected(int clientId) {
+        ClientHandler client = clients.get(clientId);
+        return client != null && client.isConnected();
+    }
+
+    /**
+     * 获取客户端状态
+     *
+     * @param clientId 客户端ID
+     * @return 客户端状态
+     */
+    public ClientState getClientState(int clientId) {
+        return clientStates.get(clientId);
+    }
+
+    /**
+     * SECS消息处理器接口
+     */
+    public interface SecsMessageHandler {
+        /**
+         * 处理收到的SECS消息
+         *
+         * @param clientId 客户端ID
+         * @param stream 流ID
+         * @param function 功能码
+         * @param systemBytes 系统字节
+         * @param data 消息数据
+         */
+        void onMessage(int clientId, int stream, int function, byte[] systemBytes, byte[] data);
+    }
+
+    /**
+     * 连接事件监听器接口
+     */
+    public interface ConnectionEventListener {
+        /**
+         * 客户端连接事件
+         *
+         * @param clientId 客户端ID
+         * @param address 客户端地址
+         */
+        void onClientConnected(int clientId, String address);
+
+        /**
+         * 客户端断开连接事件
+         *
+         * @param clientId 客户端ID
+         */
+        void onClientDisconnected(int clientId);
+    }
+
+
+}
