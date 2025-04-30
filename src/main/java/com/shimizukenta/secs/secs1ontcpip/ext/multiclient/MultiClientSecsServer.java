@@ -1,10 +1,7 @@
 package com.shimizukenta.secs.secs1ontcpip.ext.multiclient;
 
-import com.shimizukenta.secs.SecsException;
-import com.shimizukenta.secs.SecsMessage;
-import com.shimizukenta.secs.SecsSendMessageException;
-import com.shimizukenta.secs.SecsWaitReplyMessageException;
-import com.shimizukenta.secs.SecsLogListener;
+import com.shimizukenta.secs.*;
+import com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpLogObservable;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
 import com.shimizukenta.secs.secs2.Secs2;
@@ -52,16 +49,12 @@ public class MultiClientSecsServer implements Closeable {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    // SECS-I 协议定义的控制字符
-    private static final byte ENQ = (byte)0x05;  // 请求发送数据
-    private static final byte EOT = (byte)0x04;  // 结束传输
-    private static final byte ACK = (byte)0x06;  // 确认
-    private static final byte NAK = (byte)0x15;  // 否定确认
+
 
     private Consumer<ClientConnection> clientConnectedHandler;
     private Consumer<ClientConnection> clientDisconnectedHandler;
     private BiConsumer<SecsMessage, SocketAddress> messageReceivedHandler;
-
+    SecsMessageReceiveListener listener;
     /**
      * 构造函数
      *
@@ -84,6 +77,23 @@ public class MultiClientSecsServer implements Closeable {
         this.connectionManager = new ClientConnectionManager(config, heartbeatInterval, connectionTimeout);
         this.executor = Executors.newCachedThreadPool();
         this.channelGroup = AsynchronousChannelGroup.withThreadPool(executor);
+    }
+
+    /**
+     * 构造函数 - 使用配置中的地址和默认的心跳间隔和连接超时
+     *
+     * @param config 通信器配置
+     * @throws IOException 如果创建服务器失败
+     */
+    public MultiClientSecsServer(Secs1OnTcpIpReceiverCommunicatorConfig config) throws IOException {
+        this(config,
+             config.socketAddress() instanceof InetSocketAddress ?
+                 ((InetSocketAddress)config.socketAddress()).getHostString() : "0.0.0.0",
+             config.socketAddress() instanceof InetSocketAddress ?
+                 ((InetSocketAddress)config.socketAddress()).getPort() : 5000,
+             30000, // 默认心跳间隔30秒
+             60000  // 默认连接超时60秒
+        );
     }
 
     /**
@@ -114,6 +124,43 @@ public class MultiClientSecsServer implements Closeable {
     }
 
     /**
+     * 添加SECS消息接收监听器
+     *
+     * @param listener 监听器
+     */
+    public void addSecsMessageReceiveListener(SecsMessageReceiveListener listener) {
+        this.listener = listener;
+        // 对所有客户端连接添加消息监听器
+        for (ClientConnection connection : connectionManager.getAllConnections()) {
+            connection.getCommunicator().addSecsMessageReceiveListener(listener);
+        }
+
+        // 对新客户端连接添加消息监听器
+        setClientConnectedHandler(conn -> {
+            conn.getCommunicator().addSecsMessageReceiveListener(listener);
+        });
+    }
+
+    /**
+     * 获取消息来源
+     *
+     * @param message 消息
+     * @return 消息来源地址，如果不存在则返回空
+     */
+    public Optional<SocketAddress> getMessageSource(SecsMessage message) {
+        return connectionManager.getMessageSourceTracker().getMessageSource(message);
+    }
+
+    /**
+     * 获取所有客户端连接
+     *
+     * @return 客户端连接集合
+     */
+    public Collection<ClientConnection> getConnections() {
+        return connectionManager.getAllConnections();
+    }
+
+    /**
      * 启动服务器
      *
      * @throws IOException 如果启动服务器失败
@@ -139,6 +186,15 @@ public class MultiClientSecsServer implements Closeable {
                 throw e;
             }
         }
+    }
+
+    /**
+     * 打开服务器（与start方法相同）
+     *
+     * @throws IOException 如果打开服务器失败
+     */
+    public void open() throws IOException {
+        start();
     }
 
     /**
@@ -190,6 +246,8 @@ public class MultiClientSecsServer implements Closeable {
 
             if (connection != null) {
                 try {
+                    addSecs1MessageReceiveBiListener( hostReceiveListener);
+                    addSecsMessageReceiveListener( this.listener);
                     // 打开连接
                     if (!connection.getCommunicator().isOpen()) {
                         logger.info("打开客户端通信器: " + remoteAddress);
@@ -197,8 +255,7 @@ public class MultiClientSecsServer implements Closeable {
                         connection.getCommunicator().open();
                     }
 
-                    // 启动低级协议消息监听
-                    startLowLevelProtocolListener(channel, remoteAddress, connection);
+
 
                     // 设置消息接收监听器
                     connection.getCommunicator().addSecsMessageReceiveListener(message -> {
@@ -537,228 +594,9 @@ public class MultiClientSecsServer implements Closeable {
         logger.info(String.format("发送S%dF0响应到客户端: %s", stream, sourceAddress));
     }
 
-    /**
-     * 启动低级协议消息监听器
-     * 监听并处理ENQ、EOT等低级协议消息
-     *
-     * @param channel 客户端通道
-     * @param remoteAddress 客户端地址
-     * @param connection 客户端连接
-     */
-    private void startLowLevelProtocolListener(AsynchronousSocketChannel channel,
-                                             SocketAddress remoteAddress,
-                                             ClientConnection connection) {
-        // 创建缓冲区用于读取低级协议消息
-        ByteBuffer buffer = ByteBuffer.allocate(1);
 
-        // 开始异步读取
-        readNextByte(channel, buffer, remoteAddress, connection);
 
-        logger.info("启动低级协议消息监听器: " + remoteAddress);
-        System.out.println("启动低级协议消息监听器: " + remoteAddress);
-    }
 
-    /**
-     * 异步读取数据
-     *
-     * @param channel 客户端通道
-     * @param buffer 缓冲区
-     * @param remoteAddress 客户端地址
-     * @param connection 客户端连接
-     */
-    private void readNextByte(AsynchronousSocketChannel channel, ByteBuffer buffer,
-                             SocketAddress remoteAddress, ClientConnection connection) {
-        if (closed.get() || !channel.isOpen() || connection.isClosed()) {
-            return;
-        }
-
-        try {
-            // 清空缓冲区准备读取
-            buffer.clear();
-
-            // 异步读取数据
-            channel.read(buffer, null, new CompletionHandler<Integer, Void>() {
-                @Override
-                public void completed(Integer result, Void attachment) {
-                    if (result > 0) {
-                        // 读取成功
-                        buffer.flip();
-
-                        // 创建字节数组存储读取到的数据
-                        byte[] bytes = new byte[buffer.remaining()];
-                        buffer.get(bytes);
-
-                        // 更新最后活动时间
-                        connection.updateLastActivityTime();
-
-                        try {
-                            // 将所有读取到的字节传递给客户端连接的通信器
-                            connection.getCommunicator().handleReceivedBytes(bytes);
-
-                            // 记录接收到的字节
-                            if (logger.isLoggable(Level.FINE)) {
-                                StringBuilder sb = new StringBuilder();
-                                for (byte b : bytes) {
-                                    sb.append(String.format("%02X ", b));
-                                }
-                                logger.fine("接收到数据: " + sb.toString() + ", 客户端: " + remoteAddress);
-                            }
-
-                            // 如果数据中包含ENQ，记录日志
-                            for (byte b : bytes) {
-                                if (b == ENQ) {
-                                    logger.info("数据中包含ENQ消息: " + remoteAddress);
-                                    System.out.println("数据中包含ENQ消息: " + remoteAddress);
-                                    break;
-                                }
-                            }
-                        } catch (Exception e) {
-                            logger.log(Level.WARNING, "处理接收数据失败: " + e.getMessage(), e);
-                            System.out.println("处理接收数据失败: " + e.getMessage());
-                        }
-
-                        // 继续读取下一批数据
-                        readNextByte(channel, buffer, remoteAddress, connection);
-                    } else if (result == -1) {
-                        // 连接关闭
-                        logger.info("客户端连接关闭: " + remoteAddress);
-                        System.out.println("客户端连接关闭: " + remoteAddress);
-                        try {
-                            connection.close();
-                        } catch (IOException e) {
-                            logger.log(Level.WARNING, "关闭连接失败: " + e.getMessage(), e);
-                        }
-                    } else {
-                        // 继续读取
-                        readNextByte(channel, buffer, remoteAddress, connection);
-                    }
-                }
-
-                @Override
-                public void failed(Throwable exc, Void attachment) {
-                    if (exc instanceof IOException) {
-                        // 连接错误
-                        logger.log(Level.WARNING, "读取数据失败: " + exc.getMessage(), exc);
-                        System.out.println("读取数据失败: " + exc.getMessage());
-                        try {
-                            connection.close();
-                        } catch (IOException e) {
-                            logger.log(Level.WARNING, "关闭连接失败: " + e.getMessage(), e);
-                        }
-                    } else if (exc instanceof ReadPendingException) {
-                        // 已有读取操作正在进行，稍后重试
-                        executor.submit(() -> {
-                            try {
-                                Thread.sleep(100);
-                                readNextByte(channel, buffer, remoteAddress, connection);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                            }
-                        });
-                    } else {
-                        // 其他错误，继续读取
-                        logger.log(Level.WARNING, "读取数据时发生异常: " + exc.getMessage(), exc);
-                        readNextByte(channel, buffer, remoteAddress, connection);
-                    }
-                }
-            });
-        } catch (ReadPendingException e) {
-            // 已有读取操作正在进行，稍后重试
-            executor.submit(() -> {
-                try {
-                    Thread.sleep(100);
-                    readNextByte(channel, buffer, remoteAddress, connection);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-        } catch (Exception e) {
-            // 其他异常，记录并继续
-            logger.log(Level.WARNING, "读取数据时发生异常: " + e.getMessage(), e);
-            readNextByte(channel, buffer, remoteAddress, connection);
-        }
-    }
-
-    /**
-     * 处理低级协议字节
-     *
-     * @param b 接收到的字节
-     * @param channel 客户端通道
-     * @param remoteAddress 客户端地址
-     * @param connection 客户端连接
-     */
-    private void handleLowLevelProtocolByte(byte b, AsynchronousSocketChannel channel,
-                                          SocketAddress remoteAddress, ClientConnection connection) {
-        try {
-            // 将接收到的字节传递给客户端连接的通信器
-            byte[] bytes = new byte[]{b};
-            connection.getCommunicator().handleReceivedBytes(bytes);
-
-            // 记录接收到的字节
-            logger.fine(String.format("接收到字节: 0x%02X, 客户端: %s", b, remoteAddress));
-
-            // 如果是ENQ，记录日志
-            if (b == ENQ) {
-                logger.info("收到ENQ消息: " + remoteAddress);
-                System.out.println("收到ENQ消息: " + remoteAddress);
-            }
-            // 其他低级协议字节由通信器内部处理
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "处理低级协议字节失败: " + e.getMessage(), e);
-            System.out.println("处理低级协议字节失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 发送低级协议字节
-     *
-     * @param channel 客户端通道
-     * @param b 要发送的字节
-     * @param remoteAddress 客户端地址
-     */
-    private void sendProtocolByte(AsynchronousSocketChannel channel, byte b, SocketAddress remoteAddress) {
-        try {
-            ByteBuffer buffer = ByteBuffer.allocate(1);
-            buffer.put(b);
-            buffer.flip();
-
-            channel.write(buffer, null, new CompletionHandler<Integer, Void>() {
-                @Override
-                public void completed(Integer result, Void attachment) {
-                    if (result > 0) {
-                        logger.info(String.format("发送协议字节 0x%02X 成功: %s", b, remoteAddress));
-                        System.out.println(String.format("发送协议字节 0x%02X 成功: %s", b, remoteAddress));
-                    } else {
-                        logger.warning(String.format("发送协议字节 0x%02X 失败: %s", b, remoteAddress));
-                        System.out.println(String.format("发送协议字节 0x%02X 失败: %s", b, remoteAddress));
-                    }
-                }
-
-                @Override
-                public void failed(Throwable exc, Void attachment) {
-                    logger.log(Level.WARNING, String.format("发送协议字节 0x%02X 失败: %s - %s",
-                            b, remoteAddress, exc.getMessage()), exc);
-                    System.out.println(String.format("发送协议字节 0x%02X 失败: %s - %s",
-                            b, remoteAddress, exc.getMessage()));
-                }
-            });
-        } catch (WritePendingException e) {
-            // 已有写操作正在进行，稍后重试
-            executor.submit(() -> {
-                try {
-                    Thread.sleep(100);
-                    sendProtocolByte(channel, b, remoteAddress);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-        } catch (Exception e) {
-            logger.log(Level.WARNING, String.format("发送协议字节 0x%02X 失败: %s - %s",
-                    b, remoteAddress, e.getMessage()), e);
-            System.out.println(String.format("发送协议字节 0x%02X 失败: %s - %s",
-                    b, remoteAddress, e.getMessage()));
-        }
-    }
 
     /**
      * 向客户端发送消息
@@ -778,6 +616,79 @@ public class MultiClientSecsServer implements Closeable {
         ClientConnection connection = connectionManager.getConnection(clientAddress);
         if (connection != null && !connection.isClosed()) {
             return connection.send(stream, function, wbit, secs2);
+        } else {
+            logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
+            throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
+        }
+    }
+
+    /**
+     * 向客户端发送消息（简化版）
+     *
+     * @param clientAddress 客户端地址
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param wbit 是否需要回复
+     * @param secs2 消息数据
+     * @throws SecsSendMessageException 如果发送消息失败
+     * @throws SecsWaitReplyMessageException 如果等待回复超时
+     * @throws SecsException 如果发生其他SECS异常
+     * @throws InterruptedException 如果线程被中断
+     */
+    public void send(SocketAddress clientAddress, int stream, int function, boolean wbit, Secs2 secs2)
+            throws SecsSendMessageException, SecsWaitReplyMessageException, SecsException, InterruptedException {
+        ClientConnection connection = connectionManager.getConnection(clientAddress);
+        if (connection != null && !connection.isClosed()) {
+            connection.getCommunicator().send(stream, function, wbit, secs2);
+        } else {
+            logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
+            throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
+        }
+    }
+
+    /**
+     * 向客户端发送消息并等待回复
+     *
+     * @param clientAddress 客户端地址
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param secs2 消息数据
+     * @return 回复消息
+     * @throws SecsSendMessageException 如果发送消息失败
+     * @throws SecsWaitReplyMessageException 如果等待回复超时
+     * @throws SecsException 如果发生其他SECS异常
+     * @throws InterruptedException 如果线程被中断
+     */
+    public SecsMessage sendAndWaitReply(SocketAddress clientAddress, int stream, int function, Secs2 secs2)
+            throws SecsSendMessageException, SecsWaitReplyMessageException, SecsException, InterruptedException {
+        ClientConnection connection = connectionManager.getConnection(clientAddress);
+        if (connection != null && !connection.isClosed()) {
+            return connection.getCommunicator().sendAndWaitReply(stream, function, secs2);
+        } else {
+            logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
+            throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
+        }
+    }
+
+    /**
+     * 向客户端发送消息并等待回复，带超时
+     *
+     * @param clientAddress 客户端地址
+     * @param stream 流ID
+     * @param function 功能ID
+     * @param secs2 消息数据
+     * @param timeout 超时时间（毫秒）
+     * @return 回复消息
+     * @throws SecsSendMessageException 如果发送消息失败
+     * @throws SecsWaitReplyMessageException 如果等待回复超时
+     * @throws SecsException 如果发生其他SECS异常
+     * @throws InterruptedException 如果线程被中断
+     */
+    public SecsMessage sendAndWaitReply(SocketAddress clientAddress, int stream, int function, Secs2 secs2, long timeout)
+            throws SecsSendMessageException, SecsWaitReplyMessageException, SecsException, InterruptedException {
+        ClientConnection connection = connectionManager.getConnection(clientAddress);
+        if (connection != null && !connection.isClosed()) {
+            return connection.getCommunicator().sendAndWaitReply(stream, function, secs2, timeout);
         } else {
             logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
             throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
@@ -901,5 +812,11 @@ public class MultiClientSecsServer implements Closeable {
      */
     public boolean isClosed() {
         return closed.get();
+    }
+
+    Secs1MessageReceiveBiListener hostReceiveListener;
+
+    public void addSecs1MessageReceiveBiListener(Secs1MessageReceiveBiListener hostReceiveListener) {
+       this.hostReceiveListener= hostReceiveListener;
     }
 }

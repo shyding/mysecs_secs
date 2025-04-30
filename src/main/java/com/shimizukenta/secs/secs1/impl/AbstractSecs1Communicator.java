@@ -36,7 +36,7 @@ public abstract class AbstractSecs1Communicator extends AbstractSecsCommunicator
 	
 	private final AbstractSecs1CommunicatorConfig config;
 	private final Secs1MessageBuilder msgBuilder;
-	private final AbstractSecs1CircuitFacade circuit;
+	protected final AbstractSecs1CircuitFacade circuit;
 	
 	private final AbstractSecs1MessageReceiveObserverFacade secs1MsgRecvObserver;
 	private final AbstractSecsCommunicateStateObserverFacade secsCommunicateStateObserver;

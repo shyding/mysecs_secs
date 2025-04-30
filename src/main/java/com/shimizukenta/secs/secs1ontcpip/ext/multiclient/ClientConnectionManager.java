@@ -117,14 +117,7 @@ public class ClientConnectionManager implements Closeable {
         return connections.get(remoteAddress);
     }
 
-    /**
-     * 获取所有客户端连接
-     *
-     * @return 所有客户端连接
-     */
-    public Collection<ClientConnection> getAllConnections() {
-        return connections.values();
-    }
+
 
     /**
      * 获取客户端连接数
@@ -134,6 +127,8 @@ public class ClientConnectionManager implements Closeable {
     public int getConnectionCount() {
         return connections.size();
     }
+
+
 
     /**
      * 检查连接状态
@@ -157,15 +152,15 @@ public class ClientConnectionManager implements Closeable {
                 }
 
                 // 检查连接是否超时
-                if (currentTime - conn.getLastActivityTime() > connectionTimeout) {
-                    // 发送心跳
-                    boolean heartbeatSuccess = conn.sendHeartbeat();
-
-                    if (!heartbeatSuccess) {
-                        logger.warning("客户端连接超时: " + addr);
-                        toRemove.add(addr);
-                    }
-                }
+//                if (currentTime - conn.getLastActivityTime() > connectionTimeout) {
+//                    // 发送心跳
+//                    boolean heartbeatSuccess = conn.sendHeartbeat();
+//
+//                    if (!heartbeatSuccess) {
+//                        logger.warning("客户端连接超时: " + addr);
+//                        toRemove.add(addr);
+//                    }
+//                }
             }
 
             // 移除关闭和超时的连接
@@ -198,6 +193,18 @@ public class ClientConnectionManager implements Closeable {
         messageSourceTracker.trackReceiveTime(time, sourceAddress);
     }
 
+
+    /**
+     * 获取所有客户端连接
+     *
+     * @return 所有客户端连接的列表
+     */
+    public List<ClientConnection> getAllConnections() {
+        synchronized (connections) {
+            return new ArrayList<>(connections.values());
+        }
+    }
+
     /**
      * 获取消息来源
      *
@@ -205,7 +212,17 @@ public class ClientConnectionManager implements Closeable {
      * @return 来源地址，如果未知则返回null
      */
     public SocketAddress getMessageSource(SecsMessage message) {
-        return messageSourceTracker.getMessageSource(message);
+        Optional<SocketAddress> opt = messageSourceTracker.getMessageSource(message);
+        return opt.orElse(null);
+    }
+
+    /**
+     * 获取消息来源跟踪器
+     *
+     * @return 消息来源跟踪器
+     */
+    public MessageSourceTracker getMessageSourceTracker() {
+        return messageSourceTracker;
     }
 
     /**

@@ -59,7 +59,7 @@ public class Secs1TcpClientTest {
         config.deviceId(DEVICE_ID);
 
         // 设置为主控方(Master)
-        config.isMaster(true);
+        config.isMaster(false);
 
         // 设置为设备端
         config.isEquip(IS_EQUIP);

@@ -4,9 +4,7 @@ import com.shimizukenta.secs.SecsException;
 import com.shimizukenta.secs.SecsMessage;
 import com.shimizukenta.secs.SecsSendMessageException;
 import com.shimizukenta.secs.secs1.Secs1Message;
-import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpCommunicator;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
-import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicator;
 import com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator;
 import com.shimizukenta.secs.secs2.Secs2;
 
@@ -70,14 +68,7 @@ public class ClientConnection implements Closeable {
         return channel;
     }
 
-    /**
-     * 获取通信器
-     *
-     * @return 通信器
-     */
-    public Secs1OnTcpIpMultiClientCommunicator getCommunicator() {
-        return communicator;
-    }
+
 
     /**
      * 更新最后活动时间
@@ -86,14 +77,7 @@ public class ClientConnection implements Closeable {
         this.lastActivityTime = System.currentTimeMillis();
     }
 
-    /**
-     * 获取最后活动时间
-     *
-     * @return 最后活动时间
-     */
-    public long getLastActivityTime() {
-        return lastActivityTime;
-    }
+
 
     /**
      * 获取创建时间
@@ -233,6 +217,42 @@ public class ClientConnection implements Closeable {
      */
     public boolean isClosed() {
         return closed.get() || !channel.isOpen();
+    }
+
+    /**
+     * 检查连接是否打开
+     *
+     * @return 如果连接打开则返回true
+     */
+    public boolean isConnected() {
+        return !isClosed();
+    }
+
+    /**
+     * 获取最后活动时间
+     *
+     * @return 最后活动时间（毫秒）
+     */
+    public long getLastActivityTime() {
+        return lastActivityTime;
+    }
+
+    /**
+     * 获取远程地址
+     *
+     * @return 远程地址
+     */
+    public SocketAddress getRemoteSocketAddress() {
+        return remoteAddress;
+    }
+
+    /**
+     * 获取通信器
+     *
+     * @return 通信器
+     */
+    public Secs1OnTcpIpMultiClientCommunicator getCommunicator() {
+        return communicator;
     }
 
     /**
