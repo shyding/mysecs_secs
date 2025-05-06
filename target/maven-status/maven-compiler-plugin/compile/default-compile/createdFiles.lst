@@ -1,3 +1,4 @@
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\AbstractSecs1OnTcpIpMultiClientCommunicator$1.class
 com\shimizukenta\secs\secs2\impl\Secs2Builders$SingletonHolder$1.class
 com\shimizukenta\secs\gem\ClockType.class
 com\shimizukenta\secs\secs1\impl\AbstractSecs1MessagePassThroughObserverFacade.class
@@ -28,6 +29,7 @@ com\shimizukenta\secs\gem\DynamicCollectionEvent$1.class
 com\shimizukenta\secs\hsmsss\impl\AbstractHsmsSsPassiveCommunicator$1.class
 com\shimizukenta\secs\hsms\impl\AbstractHsmsSessionCommunicateStateLog$1.class
 com\shimizukenta\secs\hsmsss\HsmsSsCommunicator$3.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\Secs1OnTcpIpMultiClientCommunicator$1.class
 com\shimizukenta\secs\gem\ACKC5.class
 com\shimizukenta\secs\sml\impl\AbstractSmlMessageParser$1.class
 com\shimizukenta\secs\local\property\StringProperty.class
@@ -198,7 +200,6 @@ com\shimizukenta\secs\SecsCommunicatorConfigValueGettable.class
 com\shimizukenta\secs\local\property\impl\StringUtils$1.class
 com\shimizukenta\secs\local\property\FloatCompution.class
 com\shimizukenta\secs\hsmsss\HsmsSsCommunicator.class
-com\shimizukenta\secs\secs1ontcpip\ext\Secs1MessageFormatter.class
 com\shimizukenta\secs\secs1\impl\AbstractSecs1MessageReceiveObserverFacade.class
 com\shimizukenta\secs\local\property\LongSettable.class
 com\shimizukenta\secs\sml\impl\SmlMessageParsers$SingletonHolder.class
@@ -207,6 +208,7 @@ com\shimizukenta\secs\impl\AbstractSecsMessageBuilder.class
 com\shimizukenta\secs\local\property\impl\CollectionUtils$InnerSize.class
 com\shimizukenta\secs\util\AbstractEntityMessageSender.class
 com\shimizukenta\secs\SecsThrowableLog.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\MultiClientSecsServer$1.class
 com\shimizukenta\secs\hsms\HsmsWaitReplyMessageException.class
 com\shimizukenta\secs\SecsLog.class
 com\shimizukenta\secs\hsmsgs\impl\AbstractHsmsGsActiveCommunicator$1.class
@@ -295,7 +297,6 @@ com\shimizukenta\secs\gem\CEED.class
 com\shimizukenta\secs\local\property\ListProperty$1.class
 com\shimizukenta\secs\secs1\impl\AbstractSecs1Message.class
 com\shimizukenta\secs\secs1ontcpip\Secs1OnTcpIpChannelConnectionLogState.class
-com\shimizukenta\secs\secs1ontcpip\ext\ExtendedSecs1OnTcpIpReceiverCommunicator.class
 com\shimizukenta\secs\secs1\Secs1MessageEmptyBlockListIllegalArgumentException.class
 com\shimizukenta\secs\gem\impl\AbstractGemConfig.class
 com\shimizukenta\secs\secs1\Secs1MessageReceiveBiListener.class
@@ -304,6 +305,7 @@ com\shimizukenta\secs\secs1ontcpip\Secs1OnTcpIpCommunicatorConfig.class
 com\shimizukenta\secs\gem\Gem.class
 com\shimizukenta\secs\local\property\impl\NumberUtils$InnerBiLong.class
 com\shimizukenta\secs\impl\AbstractSecsMessageReceiveObserverFacade$SecsMsgRecvQueueBiObserver.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ClientConnection.class
 com\shimizukenta\secs\secs2\Secs2Item.class
 com\shimizukenta\secs\secs1\Secs1LogObservable.class
 com\shimizukenta\secs\local\property\Settable.class
@@ -323,10 +325,12 @@ com\shimizukenta\secs\secs2\impl\Secs2BytesListBuilder.class
 com\shimizukenta\secs\secs2\Secs2.class
 com\shimizukenta\secs\hsms\impl\AbstractHsmsMessageBuilder$2.class
 com\shimizukenta\secs\impl\AbstractQueueBiObserver.class
+com\shimizukenta\secs\impl\AbstractSecsMessageWithSource.class
 com\shimizukenta\secs\secs1\impl\AbstractSecs1MessageReceiveObserverFacade$Secs1MsgRecvQueueBiObserver.class
 com\shimizukenta\secs\local\property\impl\NumberUtils$InnerCollectionFloat$Inner.class
 com\shimizukenta\secs\local\property\impl\ObjectUtils$3.class
 com\shimizukenta\secs\secs2\impl\Secs2Float4.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ExceptionUtil.class
 com\shimizukenta\secs\local\property\BooleanProperty$1.class
 com\shimizukenta\secs\SecsMessageReceiveObservable.class
 com\shimizukenta\secs\secs1ontcpip\Secs1OnTcpIpLogObservable.class
@@ -389,6 +393,7 @@ com\shimizukenta\secs\util\EntityCommunicatableStateChangeListener.class
 com\shimizukenta\secs\gem\DRACK.class
 com\shimizukenta\secs\impl\AbstractBaseCommunicator.class
 com\shimizukenta\secs\hsmsgs\impl\AbstractHsmsGsCommunicator$1.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\Secs1OnTcpIpMultiClientCommunicator.class
 com\shimizukenta\secs\secs1ontcpip\Secs1OnTcpIpCommunicator.class
 com\shimizukenta\secs\secs1\Secs1GemAccessor.class
 com\shimizukenta\secs\impl\AbstractBaseCommunicator$1.class
@@ -524,7 +529,9 @@ com\shimizukenta\secs\hsms\HsmsSessionNotSelectedException.class
 com\shimizukenta\secs\local\property\BooleanGettable.class
 com\shimizukenta\secs\local\property\Compution.class
 com\shimizukenta\secs\secs2\impl\Secs2Unicode.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\MultiClientSecsServer.class
 com\shimizukenta\secs\hsms\HsmsConnectionModeIllegalStateException.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ClientConnectionManager.class
 com\shimizukenta\secs\hsms\HsmsCommunicateStateDetectable.class
 com\shimizukenta\secs\impl\AbstractSecsLogObserverFacade.class
 com\shimizukenta\secs\local\property\impl\AbstractSetCompution.class
@@ -537,6 +544,7 @@ com\shimizukenta\secs\gem\DynamicEventReportConfig.class
 com\shimizukenta\secs\hsms\HsmsMessageDeselectStatus.class
 com\shimizukenta\secs\secs1\impl\AbstractSecs1CircuitFacade.class
 com\shimizukenta\secs\impl\SecsMessagePassThroughObservableImpl.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\AbstractSecs1OnTcpIpMultiClientCommunicator.class
 com\shimizukenta\secs\secs1ontcpip\Secs1OnTcpIpChannelConnectionLog.class
 com\shimizukenta\secs\gem\LRACK.class
 com\shimizukenta\secs\gem\ACKC3.class
@@ -547,6 +555,7 @@ com\shimizukenta\secs\local\property\StringGettable.class
 com\shimizukenta\secs\secs1\impl\Secs1InvalidMessage.class
 com\shimizukenta\secs\SecsMessage.class
 com\shimizukenta\secs\SecsCommunicateStateDetectable.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\MessageSourceTracker.class
 com\shimizukenta\secs\hsms\impl\AbstractHsmsLogObserverFacade.class
 com\shimizukenta\secs\hsmsss\impl\AbstractHsmsSsSession$1.class
 com\shimizukenta\secs\hsms\HsmsConnectionMode.class

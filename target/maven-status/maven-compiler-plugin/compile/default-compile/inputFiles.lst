@@ -16,6 +16,7 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\impl\Abstra
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmsLogObservable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\CollectionCompution.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\impl\SecsMessagePassThroughObservableImpl.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ClientConnection.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\sml\SmlParseException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsmsss\impl\HsmsSsAsynchronousSocketChannelFacade.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\SecsWaitReplyMessageExceptionLog.java
@@ -83,6 +84,7 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\gem\GRANT6.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\AbstractCompution.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsmsss\impl\package-info.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs2\Secs2Builder.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\Secs1OnTcpIpMultiClientCommunicator.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\sml\impl\AbstractSmlMessageParser.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\gem\TIACK.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\impl\AbstractSecs1LogObserverFacade.java
@@ -98,7 +100,6 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\package-in
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\impl\AbstractSecs1OnTcpIpReceiverCommunicator.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\AbstractObjectProperty.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\impl\AbstractHsmsMessagePassThroughLog.java
-E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\Secs1MessageFormatter.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmsSession.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\TimeoutSettable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\Secs1OnTcpIpDetectTerminateException.java
@@ -125,6 +126,7 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\impl\AbstractSec
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmsRejectException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\DoubleSettable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\sml\SmlMessageParser.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ExceptionUtil.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\StringSettable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\ObjectObservable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\gem\LRACK.java
@@ -160,12 +162,14 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1NotRe
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\AbstractHsmsCommunicatorConfig.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1MessageBlockPassThroughLog.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\SecsCommunicator.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ClientConnectionManager.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1MessageHeaderByteLengthIllegalArgumentException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmsDetectTerminateException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmChannelAlreadyShutdownException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\gem\ONLACK.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\BooleanProperty.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\NumberUtils.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\MultiClientSecsServer.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs2\Secs2IndexOutOfBoundsException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\AbstractTimeoutAndUnit.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\impl\AbstractSecs1OnTcpIpLogObserverFacade.java
@@ -245,6 +249,7 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1Timeo
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\util\AbstractEntityEventAdapter.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\impl\AbstractPropertyBiObserver.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\gem\impl\AbstractDynamicReport.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\MessageSourceTracker.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1SendByteException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\impl\HsmsMessageBuilder.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmsWaitReplyMessageException.java
@@ -289,7 +294,6 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs2\impl\Secs2
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\AbstractPredicateCompution.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs2\impl\Secs2Uint4.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\package-info.java
-E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\ExtendedSecs1OnTcpIpReceiverCommunicator.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs2\impl\Secs2Int1.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\SecsSendMessageException.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\SecsCommunicatableStateChangeBiListener.java
@@ -326,7 +330,9 @@ E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1TooBi
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\SecsMessageReceiveObservable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\AbstractBooleanProperty.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsmsgs\impl\AbstractHsmsGsCommunicator.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\impl\AbstractSecsMessageWithSource.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\local\property\impl\AbstractCollectionProperty.java
+E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1ontcpip\ext\multiclient\AbstractSecs1OnTcpIpMultiClientCommunicator.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\hsms\HsmsCommunicateStateDetectable.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs2\impl\Secs2Float4.java
 E:\work\idea\wk1\secs4java8\src\main\java\com\shimizukenta\secs\secs1\Secs1GemAccessor.java

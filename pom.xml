@@ -30,6 +30,13 @@
             <version>RELEASE</version>
             <scope>test</scope>
         </dependency>
+        <!-- ProGuard依赖 -->
+        <dependency>
+            <groupId>net.sf.proguard</groupId>
+            <artifactId>proguard-base</artifactId>
+            <version>6.2.2</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -45,25 +52,103 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
+
+            <!-- 使用maven-jar-plugin排除examples目录 -->
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.3.0</version>
-                <executions>
-                    <execution>
-                        <id>add-test-source</id>
-                        <phase>generate-test-sources</phase>
-                        <goals>
-                            <goal>add-test-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>src/examples</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <excludes>
+                        <exclude>**/examples/**</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
+
+            <!-- 混淆插件已移至生产环境配置文件中 -->
+
         </plugins>
     </build>
-</project> 
+
+    <!-- 使用配置文件来控制是否包含examples目录 -->
+    <profiles>
+        <!-- 开发配置文件，包含examples目录（默认激活） -->
+        <profile>
+            <id>development</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+                            <execution>
+                                <id>add-test-source</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/examples</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- 生产配置文件，不包含examples目录，并进行混淆 -->
+        <profile>
+            <id>production</id>
+            <build>
+                <plugins>
+                    <!-- ProGuard混淆插件 -->
+                    <plugin>
+                        <groupId>com.github.wvengen</groupId>
+                        <artifactId>proguard-maven-plugin</artifactId>
+                        <version>2.5.2</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>proguard</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <!-- 指定混淆后的jar包名称 -->
+                            <outjar>${project.build.finalName}-obfuscated.jar</outjar>
+                            <!-- 是否混淆 -->
+                            <obfuscate>true</obfuscate>
+                            <!-- 直接在pom.xml中定义混淆规则 -->
+                            <options>
+                                <option>-dontoptimize</option>
+                                <option>-dontpreverify</option>
+                                <option>-dontwarn</option>
+                                <option>-ignorewarnings</option>
+                                <option>-keepattributes *Annotation*</option>
+                                <option>-keep public class com.shimizukenta.secs.** { public *; }</option>
+                                <option>-verbose</option>
+                            </options>
+                            <libs>
+                                <!-- 添加JDK库路径 -->
+                                <lib>${java.home}/lib/rt.jar</lib>
+                                <lib>${java.home}/lib/jce.jar</lib>
+                            </libs>
+                            <!-- 指定输入jar包 -->
+                            <injar>${project.build.finalName}.jar</injar>
+                            <!-- 指定输出目录 -->
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

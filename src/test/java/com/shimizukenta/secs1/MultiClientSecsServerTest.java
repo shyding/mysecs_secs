@@ -1,4 +1,4 @@
-package com.shimizukenta.secs.secs1ontcpip.ext.multiclient;
+package com.shimizukenta.secs1;
 
 import com.shimizukenta.secs.SecsException;
 import com.shimizukenta.secs.SecsMessage;
@@ -12,6 +12,8 @@ import com.shimizukenta.secs.secs1.Secs1Message;
 import com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener;
 import com.shimizukenta.secs.secs1.impl.Secs1ValidMessage;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
+import com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection;
+import com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer;
 import com.shimizukenta.secs.secs2.Secs2;
 
 import java.io.BufferedReader;
@@ -200,7 +202,7 @@ public class MultiClientSecsServerTest {
 
             // 发送响应到特定客户端
             System.out.println("handleS1F1 - 准备发送S1F2响应到: " + source);
-            server.send(source, 1, 2, false, replyData);
+            server.send(source,message, 1, 2, false, replyData);
             System.out.println("handleS1F1 - 已发送S1F2响应到: " + source);
             logger.info("已发送S1F2响应到 " + source);
 
@@ -223,7 +225,7 @@ public class MultiClientSecsServerTest {
             Secs2 replyData = Secs2.binary((byte)0x00);
 
             // 发送响应到特定客户端
-            server.send(source, 1, 14, false, replyData);
+            server.send(source, message,1, 14, false, replyData);
             logger.info("已发送S1F14响应到 " + source);
 
         } catch (Exception e) {
@@ -252,7 +254,7 @@ public class MultiClientSecsServerTest {
             );
 
             // 发送响应到特定客户端
-            server.send(source, 2, 32, false, replyData);
+            server.send(source,message, 2, 32, false, replyData);
             logger.info("已发送S2F32响应到 " + source);
 
         } catch (Exception e) {
@@ -298,15 +300,15 @@ public class MultiClientSecsServerTest {
             MultiClientSecsServer server = new MultiClientSecsServer(config);
             server.open();
             logger.info("服务器已启动，监听端口: " + config.socketAddress());
-            server.addSecs1MessageReceiveBiListener(hostReceiveListener);
+//            server.addSecs1MessageReceiveBiListener(hostReceiveListener);
             // 注册消息处理器
-//            server.addSecsMessageReceiveListener(msg -> {
-//                try {
-//                    handleMessage(server, msg);
-//                } catch (Exception e) {
-//                    logger.log(Level.SEVERE, "处理消息时出错", e);
-//                }
-//            });
+            server.addSecsMessageReceiveListener(msg -> {
+                try {
+                    handleMessage(server, msg);
+                } catch (Exception e) {
+                    logger.log(Level.SEVERE, "处理消息时出错", e);
+                }
+            });
 
             // 启动命令行交互
             startCommandLineInterface(server);
@@ -465,7 +467,15 @@ public class MultiClientSecsServerTest {
                     switch (func) {
                         case 1: {
                             if (wbit) {
-                                comm.gem().s1f2(primaryMsg);
+
+                                comm.gem().s1f2( primaryMsg);;
+                            }
+                            break;
+                        }
+                        case 3: {
+                            if (wbit) {
+
+                                comm.send(primaryMsg,1,4,false,Secs2.list(Secs2.ascii("trigger s1f3")));;
                             }
                             break;
                         }

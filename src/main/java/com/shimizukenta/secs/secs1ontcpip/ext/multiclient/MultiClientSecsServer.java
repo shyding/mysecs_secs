@@ -401,6 +401,17 @@ public class MultiClientSecsServer implements Closeable {
      * @throws SecsException 如果发生其他SECS异常
      * @throws InterruptedException 如果线程被中断
      */
+    public void send(SocketAddress clientAddress,SecsMessage message, int stream, int function, boolean wbit, Secs2 secs2)
+            throws SecsSendMessageException, SecsWaitReplyMessageException, SecsException, InterruptedException {
+        ClientConnection connection = connectionManager.getConnection(clientAddress);
+        if (connection != null && !connection.isClosed()) {
+            connection.getCommunicator().send(message,stream, function, wbit, secs2);
+        } else {
+            logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
+            throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
+        }
+    }
+
     public void send(SocketAddress clientAddress, int stream, int function, boolean wbit, Secs2 secs2)
             throws SecsSendMessageException, SecsWaitReplyMessageException, SecsException, InterruptedException {
         ClientConnection connection = connectionManager.getConnection(clientAddress);
@@ -411,6 +422,7 @@ public class MultiClientSecsServer implements Closeable {
             throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
         }
     }
+
 
     /**
      * 向客户端发送消息并等待回复
