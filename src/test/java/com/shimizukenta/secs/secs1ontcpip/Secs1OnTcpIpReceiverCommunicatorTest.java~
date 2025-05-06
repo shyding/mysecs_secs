@@ -1,0 +1,412 @@
+package com.shimizukenta.secs.secs1ontcpip;
+
+import com.shimizukenta.secs.SecsException;
+import com.shimizukenta.secs.SecsMessage;
+import com.shimizukenta.secs.gem.COMMACK;
+import com.shimizukenta.secs.gem.ONLACK;
+import com.shimizukenta.secs.secs1.Secs1Message;
+import com.shimizukenta.secs.secs2.Secs2;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Secs1OnTcpIpReceiverCommunicator测试类
+ * 用于测试SECS-I消息的接收和发送功能
+ */
+public class Secs1OnTcpIpReceiverCommunicatorTest {
+
+    private static final String DEFAULT_IP = "127.0.0.1";
+    private static final int DEFAULT_PORT = 5000;
+
+    private Secs1OnTcpIpReceiverCommunicator communicator;
+    private boolean running = true;
+
+    /**
+     * 主方法
+     * @param args 命令行参数
+     */
+    public static void main(String[] args) {
+        try {
+            Secs1OnTcpIpReceiverCommunicatorTest test = new Secs1OnTcpIpReceiverCommunicatorTest();
+            test.start(args);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 启动测试
+     * @param args 命令行参数
+     * @throws IOException 如果通信器打开失败
+     */
+    public void start(String[] args) throws IOException {
+        // 解析命令行参数
+        String ip = DEFAULT_IP;
+        int port = DEFAULT_PORT;
+
+        if (args.length >= 1) {
+            ip = args[0];
+        }
+        if (args.length >= 2) {
+            try {
+                port = Integer.parseInt(args[1]);
+            } catch (NumberFormatException e) {
+                System.err.println("端口号格式错误，使用默认端口: " + DEFAULT_PORT);
+            }
+        }
+
+        // 创建并配置通信器
+        Secs1OnTcpIpReceiverCommunicatorConfig config = createConfig(ip, port);
+        communicator = Secs1OnTcpIpReceiverCommunicator.newInstance(config);
+
+        // 添加日志监听器
+        communicator.addSecsLogListener(log -> {
+            System.out.println("[22日志] " + log);
+        });
+
+        // 添加通信状态变化监听器
+        communicator.addSecsCommunicatableStateChangeListener(state -> {
+            System.out.println("[通信状态] " + (state ? "已连接" : "未连接"));
+        });
+
+        // 添加SECS消息接收监听器
+        communicator.addSecsMessageReceiveListener(this::handleSecsMessage);
+
+        // 打开通信器
+        System.out.println("正在启动SECS-I接收器，监听地址: " + ip + ":" + port);
+        communicator.open();
+
+        // 启动命令行交互
+        startCommandLineInterface();
+    }
+
+    /**
+     * 创建通信器配置
+     * @param ip IP地址
+     * @param port 端口号
+     * @return 配置对象
+     */
+    private Secs1OnTcpIpReceiverCommunicatorConfig createConfig(String ip, int port) {
+        Secs1OnTcpIpReceiverCommunicatorConfig config = new Secs1OnTcpIpReceiverCommunicatorConfig();
+
+        // 设置Socket地址
+        SocketAddress socketAddress = new InetSocketAddress(ip, port);
+        config.socketAddress(socketAddress);
+
+        // 设置设备ID
+        config.deviceId(10);
+
+        // 设置为设备模式（非主机模式）
+        config.isEquip(true);
+        config.isMaster(false);
+
+        // 设置超时参数
+        config.timeout().t1(1.0F);    // 字符间超时
+        config.timeout().t2(15.0F);   // 协议超时
+        config.timeout().t3(45.0F);   // 回复超时
+        config.timeout().t4(45.0F);   // 中间超时
+
+        // 设置重试次数
+        config.retry(3);
+
+        // 设置重新绑定时间
+        config.rebindSeconds(5.0F);
+
+        return config;
+    }
+
+    /**
+     * 处理接收到的SECS消息
+     * @param message 接收到的消息
+     */
+    private void handleSecsMessage(SecsMessage message) {
+        try {
+            int stream = message.getStream();
+            int function = message.getFunction();
+            boolean wbit = message.wbit();
+
+            System.out.println("\n[接收消息] S" + stream + "F" + function + (wbit ? " W" : ""));
+            System.out.println("消息内容: " + message.secs2());
+
+            // 根据消息类型处理
+            switch (stream) {
+                case 1: {
+                    handleStream1Messages(message, function, wbit);
+                    break;
+                }
+                case 2: {
+                    handleStream2Messages(message, function, wbit);
+                    break;
+                }
+                default: {
+                    // 对于未知的Stream，如果需要回复，发送S0F0
+                    if (wbit) {
+                        communicator.send(message, 0, 0, false, Secs2.empty());
+                        System.out.println("[发送消息] S0F0 (未知Stream的默认回复)");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[错误] 处理消息时发生异常: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 处理Stream 1消息
+     * @param message 原始消息
+     * @param function 功能码
+     * @param wbit 是否需要回复
+     * @throws InterruptedException 如果线程被中断
+     * @throws SecsException 如果SECS通信出错
+     */
+    private void handleStream1Messages(SecsMessage message, int function, boolean wbit)
+            throws InterruptedException, SecsException {
+        switch (function) {
+            case 1: {
+                // S1F1 W - Are You There
+                if (wbit) {
+                    // 回复S1F2 - On Line Data
+                    Secs2 reply = Secs2.list(
+                            Secs2.ascii("RECEIVER-TEST"),  // 设备型号
+                            Secs2.ascii("1.0.0")           // 软件版本
+                    );
+                    communicator.send(message, 1, 2, false, reply);
+                    System.out.println("[发送消息] S1F2 (回复Are You There)");
+                }
+                break;
+            }
+            case 13: {
+                // S1F13 W - 建立通信请求
+                if (wbit) {
+                    // 回复S1F14 - 建立通信确认
+                    communicator.send(message, 1, 14, false, Secs2.binary(COMMACK.OK.code()));
+                    System.out.println("[发送消息] S1F14 (回复建立通信请求)");
+                }
+                break;
+            }
+            case 17: {
+                // S1F17 W - 请求在线
+                if (wbit) {
+                    // 回复S1F18 - 在线数据
+                    communicator.send(message, 1, 18, false, Secs2.binary(ONLACK.OK.code()));
+                    System.out.println("[发送消息] S1F18 (回复请求在线)");
+                }
+                break;
+            }
+            default: {
+                // 对于其他S1Fx消息，如果需要回复，发送S1F0
+                if (wbit) {
+                    communicator.send(message, 1, 0, false, Secs2.empty());
+                    System.out.println("[发送消息] S1F0 (未知S1Fx的默认回复)");
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理Stream 2消息
+     * @param message 原始消息
+     * @param function 功能码
+     * @param wbit 是否需要回复
+     * @throws InterruptedException 如果线程被中断
+     * @throws SecsException 如果SECS通信出错
+     */
+    private void handleStream2Messages(SecsMessage message, int function, boolean wbit)
+            throws InterruptedException, SecsException {
+        // 这里可以添加对S2Fx消息的处理
+        if (wbit) {
+            communicator.send(message, 2, 0, false, Secs2.empty());
+            System.out.println("[发送消息] S2F0 (未知S2Fx的默认回复)");
+        }
+    }
+
+    /**
+     * 启动命令行交互界面
+     */
+    private void startCommandLineInterface() {
+        System.out.println("\n=== SECS-I接收器测试工具 ===");
+        printHelp();
+
+        Scanner scanner = new Scanner(System.in);
+
+        while (running) {
+            System.out.print("\n> ");
+            String command = scanner.nextLine().trim();
+
+            processCommand(command, scanner);
+        }
+
+        scanner.close();
+
+        try {
+            communicator.close();
+        } catch (IOException e) {
+            System.err.println("关闭通信器时发生错误: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理命令行命令
+     * @param command 命令
+     * @param scanner 扫描器
+     */
+    private void processCommand(String command, Scanner scanner) {
+        try {
+            switch (command.toLowerCase()) {
+                case "help":
+                    printHelp();
+                    break;
+                case "status":
+                    printStatus();
+                    break;
+                case "s1f1":
+                    sendS1F1();
+                    break;
+                case "s1f13":
+                    sendS1F13();
+                    break;
+                case "s1f17":
+                    sendS1F17();
+                    break;
+                case "custom":
+                    sendCustomMessage(scanner);
+                    break;
+                case "exit":
+                case "quit":
+                    running = false;
+                    System.out.println("正在退出...");
+                    break;
+                default:
+                    System.out.println("未知命令，输入 'help' 查看帮助");
+            }
+        } catch (Exception e) {
+            System.err.println("执行命令时发生错误: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 打印帮助信息
+     */
+    private void printHelp() {
+        System.out.println("\n可用命令:");
+        System.out.println("  help   - 显示帮助信息");
+        System.out.println("  status - 显示通信器状态");
+        System.out.println("  s1f1   - 发送S1F1 W (Are You There)消息");
+        System.out.println("  s1f13  - 发送S1F13 W (建立通信)消息");
+        System.out.println("  s1f17  - 发送S1F17 W (请求在线)消息");
+        System.out.println("  custom - 发送自定义SECS消息");
+        System.out.println("  exit   - 退出程序");
+    }
+
+    /**
+     * 打印通信器状态
+     */
+    private void printStatus() {
+        System.out.println("通信器状态:");
+        System.out.println("  - 是否打开: " + communicator.isOpen());
+        System.out.println("  - 是否关闭: " + communicator.isClosed());
+        System.out.println("  - 是否可通信: " + communicator.isCommunicatable());
+        System.out.println("  - 设备ID: " + communicator.deviceId());
+    }
+
+    /**
+     * 发送S1F1 W (Are You There)消息
+     */
+    private void sendS1F1() {
+        try {
+            System.out.println("发送 S1F1 W (Are You There)...");
+            communicator.send(1, 1, true, Secs2.empty())
+                    .ifPresent(reply -> {
+                        System.out.println("收到回复: " + reply);
+                    });
+        } catch (Exception e) {
+            System.err.println("发送S1F1失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 发送S1F13 W (建立通信)消息
+     */
+    private void sendS1F13() {
+        try {
+            System.out.println("发送 S1F13 W (建立通信)...");
+            communicator.send(1, 13, true, Secs2.empty())
+                    .ifPresent(reply -> {
+                        System.out.println("收到回复: " + reply);
+                    });
+        } catch (Exception e) {
+            System.err.println("发送S1F13失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 发送S1F17 W (请求在线)消息
+     */
+    private void sendS1F17() {
+        try {
+            System.out.println("发送 S1F17 W (请求在线)...");
+            communicator.send(1, 17, true, Secs2.empty())
+                    .ifPresent(reply -> {
+                        System.out.println("收到回复: " + reply);
+                    });
+        } catch (Exception e) {
+            System.err.println("发送S1F17失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 发送自定义SECS消息
+     * @param scanner 扫描器
+     */
+    private void sendCustomMessage(Scanner scanner) {
+        try {
+            System.out.print("输入Stream号 (例如: 1): ");
+            int stream = Integer.parseInt(scanner.nextLine().trim());
+
+            System.out.print("输入Function号 (例如: 1): ");
+            int function = Integer.parseInt(scanner.nextLine().trim());
+
+            System.out.print("是否需要回复 (y/n): ");
+            boolean wbit = scanner.nextLine().trim().toLowerCase().startsWith("y");
+
+            System.out.println("发送 S" + stream + "F" + function + (wbit ? " W" : "") + "...");
+
+            // 这里简化处理，只发送空数据
+            communicator.send(stream, function, wbit, Secs2.empty())
+                    .ifPresent(reply -> {
+                        System.out.println("收到回复: " + reply);
+                    });
+        } catch (NumberFormatException e) {
+            System.err.println("输入的数字格式不正确");
+        } catch (Exception e) {
+            System.err.println("发送自定义消息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 等待直到通信器可通信或超时
+     * @param timeoutSeconds 超时秒数
+     * @return 是否成功连接
+     */
+    private boolean waitUntilCommunicatable(long timeoutSeconds) {
+        try {
+            long endTime = System.currentTimeMillis() + (timeoutSeconds * 1000);
+            while (System.currentTimeMillis() < endTime) {
+                if (communicator.isCommunicatable()) {
+                    return true;
+                }
+                TimeUnit.MILLISECONDS.sleep(100);
+            }
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+}

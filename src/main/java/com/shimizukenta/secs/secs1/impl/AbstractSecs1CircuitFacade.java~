@@ -614,28 +614,35 @@ public abstract class AbstractSecs1CircuitFacade implements Runnable {
 
 	private void enter() throws InterruptedException {
 
+		System.out.println("AbstractSecs1CircuitFacade.enter() - Starting");
 
 		try {
 			ByteOrSecs1Message v = this.queue.takeByteOrSecs1Message();
 
-
+			System.out.println("AbstractSecs1CircuitFacade.enter() - Received message from queue: " +
+				(v.byteValue != null ? "byte " + String.format("0x%02X", v.byteValue) : "message pack"));
 
 			final Secs1MessageBlockPack pack = v.messagePack;
 
 		if (pack == null) {
 
+			System.out.println("AbstractSecs1CircuitFacade.enter() - No message pack");
 
 			if (v.isENQ()) {
 
+				System.out.println("AbstractSecs1CircuitFacade.enter() - Received ENQ");
 
 				try {
+					System.out.println("AbstractSecs1CircuitFacade.enter() - Calling receiving()");
 					this.receiving();
 				}
 				catch (Secs1Exception e) {
+					System.out.println("AbstractSecs1CircuitFacade.enter() - Exception in receiving(): " + e.getMessage());
 					this.comm.offerThrowableToLog(e);
 				}
 			} else {
-
+				System.out.println("AbstractSecs1CircuitFacade.enter() - Received byte: " +
+					(v.byteValue != null ? String.format("0x%02X", v.byteValue) : "null"));
 			}
 
 		} else {

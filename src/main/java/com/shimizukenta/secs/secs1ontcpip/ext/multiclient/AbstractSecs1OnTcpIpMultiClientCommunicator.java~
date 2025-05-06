@@ -482,6 +482,9 @@ public abstract class AbstractSecs1OnTcpIpMultiClientCommunicator extends Abstra
         boolean isChannelOpen = channel.isOpen();
         boolean result = isOpened && isChannelOpen;
 
+        System.out.println("AbstractSecs1OnTcpIpMultiClientCommunicator.isOpen() - " +
+                "opened=" + isOpened + ", channel.isOpen()=" + isChannelOpen + ", result=" + result);
+
         return result;
     }
 

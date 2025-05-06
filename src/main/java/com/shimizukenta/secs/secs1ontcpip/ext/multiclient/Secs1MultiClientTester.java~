@@ -1,4 +1,3 @@
-/*
 package com.shimizukenta.secs.secs1ontcpip.ext.multiclient;
 
 import java.io.BufferedReader;
@@ -19,7 +18,6 @@ import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpCommunicatorConfig;
 import com.shimizukenta.secs.secs2.Secs2;
 import com.shimizukenta.secs.secs2.Secs2Exception;
 
-*/
 /**
  * SECS-I TCP客户端交互式测试工具
  *
@@ -31,8 +29,7 @@ import com.shimizukenta.secs.secs2.Secs2Exception;
  * 2. 支持发送各种SECS消息
  * 3. 显示详细的通信日志
  * 4. 可配置的连接参数
- *//*
-
+ */
 public class Secs1MultiClientTester {
 
     private static final Logger logger = Logger.getLogger(Secs1MultiClientTester.class.getName());
@@ -48,22 +45,18 @@ public class Secs1MultiClientTester {
     private SecsCommunicator communicator;
     private boolean running = true;
 
-    */
-/**
+    /**
      * 构造函数
-     *//*
-
+     */
     public Secs1MultiClientTester() {
         // 默认构造函数
     }
 
-    */
-/**
+    /**
      * 初始化通信器
      *
      * @throws IOException 如果创建通信器失败
-     *//*
-
+     */
     public void initialize() throws IOException {
         // 创建SECS-I配置
         Secs1OnTcpIpCommunicatorConfig config = new Secs1OnTcpIpCommunicatorConfig();
@@ -99,39 +92,33 @@ public class Secs1MultiClientTester {
         this.communicator.addSecsCommunicatableStateChangeListener(this::handleCommunicationStateChange);
     }
 
-    */
-/**
+    /**
      * 打开连接
      *
      * @throws IOException 如果打开连接失败
-     *//*
-
+     */
     public void open() throws IOException {
         logger.info("正在打开SECS-I客户端连接...");
         this.communicator.open();
         logger.info("SECS-I客户端连接已打开");
     }
 
-    */
-/**
+    /**
      * 关闭连接
      *
      * @throws IOException 如果关闭连接失败
-     *//*
-
+     */
     public void close() throws IOException {
         logger.info("正在关闭SECS-I客户端连接...");
         this.communicator.close();
         logger.info("SECS-I客户端连接已关闭");
     }
 
-    */
-/**
+    /**
      * 处理接收到的消息
      *
      * @param message 接收到的SECS消息
-     *//*
-
+     */
     private void handleReceivedMessage(SecsMessage message) {
         try {
             int stream = message.getStream();
@@ -175,11 +162,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 处理Stream 1消息
-     *//*
-
+     */
     private void handleStream1Message(SecsMessage message) throws InterruptedException, SecsException {
         int function = message.getFunction();
         boolean wbit = message.wbit();
@@ -219,11 +204,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 处理Stream 2消息
-     *//*
-
+     */
     private void handleStream2Message(SecsMessage message) throws InterruptedException, SecsException {
         int function = message.getFunction();
         boolean wbit = message.wbit();
@@ -249,11 +232,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 处理Stream 5消息
-     *//*
-
+     */
     private void handleStream5Message(SecsMessage message) throws InterruptedException, SecsException {
         int function = message.getFunction();
         boolean wbit = message.wbit();
@@ -288,11 +269,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 处理Stream 6消息
-     *//*
-
+     */
     private void handleStream6Message(SecsMessage message) throws InterruptedException, SecsException {
         int function = message.getFunction();
         boolean wbit = message.wbit();
@@ -318,11 +297,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 发送通用的SxF0响应（未知函数响应）
-     *//*
-
+     */
     private void sendSxF0Response(SecsMessage message) throws InterruptedException, SecsException {
         int stream = message.getStream();
 
@@ -331,20 +308,16 @@ public class Secs1MultiClientTester {
         System.out.println(String.format("发送S%dF0回复: 未知函数", stream));
     }
 
-    */
-/**
+    /**
      * 处理通信状态变化
-     *//*
-
+     */
     private void handleCommunicationStateChange(boolean communicatable) {
         System.out.println("\n通信状态变更为: " + (communicatable ? "可通信" : "不可通信"));
     }
 
-    */
-/**
+    /**
      * 发送S1F1 Are You There请求
-     *//*
-
+     */
     public void sendS1F1AreYouThere() {
         try {
             System.out.println("发送S1F1: Are You There");
@@ -362,11 +335,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 发送S1F13 Establish Communications请求
-     *//*
-
+     */
     public void sendS1F13EstablishCommunication() {
         try {
             System.out.println("发送S1F13: Establish Communications");
@@ -390,11 +361,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 发送S2F31 Date and Time Set请求
-     *//*
-
+     */
     public void sendS2F31DateTimeSet() {
         try {
             System.out.println("发送S2F31: Date and Time Set");
@@ -423,11 +392,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 发送S5F5 LinkTest.Request请求
-     *//*
-
+     */
     public void sendS5F5LinkTest() {
         try {
             System.out.println("发送S5F5: LinkTest.Request (心跳)");
@@ -445,11 +412,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 发送自定义SECS消息
-     *//*
-
+     */
     public void sendCustomMessage() {
         try {
             Scanner scanner = new Scanner(System.in);
@@ -516,11 +481,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 显示帮助信息
-     *//*
-
+     */
     private void printHelp() {
         System.out.println("\n=== SECS-I TCP客户端交互式测试工具 ===");
         System.out.println("可用命令:");
@@ -537,11 +500,9 @@ public class Secs1MultiClientTester {
         System.out.println("  exit    - 退出程序");
     }
 
-    */
-/**
+    /**
      * 配置连接参数
-     *//*
-
+     */
     private void configureConnection() {
         try {
             Scanner scanner = new Scanner(System.in);
@@ -605,11 +566,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 显示连接状态
-     *//*
-
+     */
     private void showStatus() {
         System.out.println("\n=== 连接状态 ===");
         if (communicator == null) {
@@ -626,11 +585,9 @@ public class Secs1MultiClientTester {
         System.out.println("  通信模式: " + (isMaster ? "主控方(Master)" : "从属方(Slave)"));
     }
 
-    */
-/**
+    /**
      * 启动命令行界面
-     *//*
-
+     */
     public void startCommandLine() {
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
         
@@ -716,11 +673,9 @@ public class Secs1MultiClientTester {
         }
     }
 
-    */
-/**
+    /**
      * 检查连接状态
-     *//*
-
+     */
     private boolean checkConnection() {
         if (communicator == null || !communicator.isCommunicatable()) {
             System.out.println("未连接到服务器，请先使用'connect'命令连接");
@@ -729,11 +684,9 @@ public class Secs1MultiClientTester {
         return true;
     }
 
-    */
-/**
+    /**
      * 主方法
-     *//*
-
+     */
     public static void main(String[] args) {
         System.out.println("启动SECS-I TCP客户端交互式测试工具...");
         
@@ -743,4 +696,3 @@ public class Secs1MultiClientTester {
         System.out.println("SECS-I TCP客户端交互式测试工具已退出");
     }
 }
-*/

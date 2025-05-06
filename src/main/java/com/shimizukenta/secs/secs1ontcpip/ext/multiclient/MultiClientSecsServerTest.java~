@@ -476,8 +476,7 @@ public class MultiClientSecsServerTest {
                         }
                         default: {
                             if (wbit) {
-
-//                        未处理        comm.send(primaryMsg, strm, 0, false);
+                                comm.send(primaryMsg, strm, 0, false);
                             }
                         }
                     }

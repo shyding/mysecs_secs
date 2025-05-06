@@ -233,7 +233,7 @@ public class ClientConnection implements Closeable {
      * @return 如果连接已关闭则返回true
      */
     public boolean isClosed() {
-        return  !channel.isOpen();
+        return closed.get() || !channel.isOpen();
     }
 
     /**

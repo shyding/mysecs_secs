@@ -106,33 +106,10 @@ public class ProtocolConvert {
 				
 				converter.open();
 				
-				try (
-						SecsCommunicator equip = Secs1OnTcpIpReceiverCommunicator.newInstance(equipConfig);
-						) {
-					
-					equip.addSecsLogListener(ProtocolConvert::echo);
-					equip.addSecsMessageReceiveBiListener(equipRecvListener());
-					
-					equip.open();
-					
-					try (
-							SecsCommunicator host = HsmsSsCommunicator.newInstance(hostConfig);
-							) {
-						
-						host.addSecsLogListener(ProtocolConvert::echo);
-						host.addSecsMessageReceiveBiListener(hostRecvListener());
-						
-						host.open();
-						
-						equip.waitUntilCommunicatable();
-						host.waitUntilCommunicatable();
-						
-						executeCommand(host, equip);
-					}
-				}
+
 			}
 		}
-		catch ( InterruptedException ignore ) {
+		catch (Exception ignore ) {
 		}
 		catch ( Throwable t ) {
 			echo(t);

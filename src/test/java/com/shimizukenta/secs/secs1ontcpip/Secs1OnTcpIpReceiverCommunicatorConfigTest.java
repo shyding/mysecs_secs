@@ -2,6 +2,7 @@ package com.shimizukenta.secs.secs1ontcpip;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +16,7 @@ class Secs1OnTcpIpReceiverCommunicatorConfigTest {
 
 	@Test
 	@DisplayName("Secs1OnTcpIpReceiverCommunicatorConfig default")
-	void testDefault() {
+	void testDefault() throws IOException, InterruptedException {
 		Secs1OnTcpIpReceiverCommunicatorConfig config = new Secs1OnTcpIpReceiverCommunicatorConfig();
 		
 		// deviceId
@@ -44,6 +45,16 @@ class Secs1OnTcpIpReceiverCommunicatorConfigTest {
 		
 		// isCheckMessageBlockDeviceId
 		assertEquals(config.isCheckMessageBlockDeviceId().booleanValue(), true);
+		Secs1OnTcpIpReceiverCommunicator secs1OnTcpIpReceiverCommunicator = Secs1OnTcpIpReceiverCommunicator.newInstance(config);
+		secs1OnTcpIpReceiverCommunicator.addReceiveSecs1MessageBlockPassThroughLogListener( l ->{
+			System.out.println(l);
+		});
+		secs1OnTcpIpReceiverCommunicator.addReceiveSecsMessagePassThroughListener( l ->{
+			System.out.println(l);
+		});
+
+		secs1OnTcpIpReceiverCommunicator.open();
+		secs1OnTcpIpReceiverCommunicator.wait();
 	}
 	
 	@Test
@@ -65,7 +76,7 @@ class Secs1OnTcpIpReceiverCommunicatorConfigTest {
 		
 		// socketAddress
 		{
-			SocketAddress a = new InetSocketAddress("127.0.0.1", 0);
+			SocketAddress a = new InetSocketAddress("127.0.0.1", 5000);
 			config.socketAddress(a);
 			assertEquals(config.socketAddress().isNull(), false);
 			assertEquals(config.socketAddress().get(), a);
