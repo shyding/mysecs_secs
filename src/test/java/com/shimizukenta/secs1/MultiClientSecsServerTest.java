@@ -58,22 +58,22 @@ public class MultiClientSecsServerTest {
 
             // 注册消息处理器
             System.out.println("注册消息处理器");
-//            server.addSecsMessageReceiveListener(msg -> {
-//                try {
-//                    System.out.println(String.format("收到消息，准备处理: S%dF%d%s",
-//                            msg.getStream(), msg.getFunction(), (msg.wbit() ? " W" : "")));
-//                    handleMessage(server, msg);
-//                } catch (Exception e) {
-//                    System.out.println("处理消息时出错: " + e.getMessage());
-//                    e.printStackTrace();
-//                    logger.log(Level.SEVERE, "处理消息时出错", e);
-//                }
-//            });
+            server.addSecsMessageReceiveListener(msg -> {
+                try {
+                    System.out.println(String.format("收到消息，准备处理: S%dF%d%s",
+                            msg.getStream(), msg.getFunction(), (msg.wbit() ? " W" : "")));
+                    handleMessage(server, msg);
+                } catch (Exception e) {
+                    System.out.println("处理消息时出错: " + e.getMessage());
+                    e.printStackTrace();
+                    logger.log(Level.SEVERE, "处理消息时出错", e);
+                }
+            });
 
 
             // 注册Secs1MessageReceiveBiListener
 //            System.out.println("注册Secs1MessageReceiveBiListener");
-            server.addSecs1MessageReceiveBiListener(hostReceiveListener);
+//            server.addSecs1MessageReceiveBiListener(hostReceiveListener);
 
             // 启动服务器
             System.out.println("启动服务器...");
@@ -131,10 +131,8 @@ public class MultiClientSecsServerTest {
         int stream = message.getStream();
         int function = message.getFunction();
         boolean wbit = message.wbit();
-        logger.info(String.format("收到消息: S%dF%d%s", stream, function, (wbit ? " W" : "")));
-        Secs1ValidMessage msg =(Secs1ValidMessage)message;
-        logger.info(String.format("收到消息: S%dF%d%s, 系统字节: %d",
-                stream, function, (wbit ? " W" : ""), msg.getSourceAddress()));
+        logger.info("设备id:"+message.deviceId() + " " + String.format("收到消息: S%dF%d%s", stream, function, (wbit ? " W" : "")));
+
 
         // 获取消息来源地址
         Optional<SocketAddress> sourceOpt = server.getMessageSource(message);
@@ -150,6 +148,9 @@ public class MultiClientSecsServerTest {
         if (stream == 1 && function == 1 && wbit) {
             // S1F1 W - Are You There
             handleS1F1(server, message, source);
+        }else if (stream == 1 && function == 3 && wbit) {
+            // S1F13 W - Establish Communications Request
+            handleS1F3(server, message, source);
         } else if (stream == 1 && function == 13 && wbit) {
             // S1F13 W - Establish Communications Request
             handleS1F13(server, message, source);
@@ -160,6 +161,21 @@ public class MultiClientSecsServerTest {
             // 对于其他带W位的消息，发送通用拒绝响应
 //            sendRejectResponse(server, message, source);
         }
+    }
+
+    private static void handleS1F3(MultiClientSecsServer server, SecsMessage message, SocketAddress source) throws InterruptedException, SecsException {
+
+        // 创建S1F2响应 - 在线数据
+        Secs2 replyData = Secs2.list(
+                Secs2.list(
+                        Secs2.ascii("MDLN"),
+                        Secs2.ascii("MULTICLIENT-SERVER")),
+                Secs2.list(
+                        Secs2.ascii("SOFTREV"),
+                        Secs2.ascii("1.0.0"))
+        );
+
+        server.send(source, message, 1, 4, false, replyData);
     }
 
     /**
@@ -202,7 +218,7 @@ public class MultiClientSecsServerTest {
 
             // 发送响应到特定客户端
             System.out.println("handleS1F1 - 准备发送S1F2响应到: " + source);
-            server.send(source,message, 1, 2, false, replyData);
+            server.gem( message).s1f2( message);
             System.out.println("handleS1F1 - 已发送S1F2响应到: " + source);
             logger.info("已发送S1F2响应到 " + source);
 

@@ -453,6 +453,7 @@ public class MultiClientSecsServer  implements Closeable {
         ClientConnection connection = connectionManager.getConnection(clientAddress);
         if (connection != null && !connection.isClosed()) {
             Gem gem = connection.getCommunicator().gem();
+            return  gem;
         }
         return null;
     }
