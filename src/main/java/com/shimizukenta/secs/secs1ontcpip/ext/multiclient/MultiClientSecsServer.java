@@ -472,6 +472,21 @@ public class MultiClientSecsServer  implements Closeable {
         send(message.getSourceAddress(), message,stream,function,wbit,secs2);
     }
 
+    public void send(SecsMessage message) throws InterruptedException, SecsException {
+        send(message,Secs2.empty());
+    }
+
+    public void send(SecsMessage message, Secs2 secs2) throws InterruptedException, SecsException {
+        send(message,false,secs2);
+    }
+    public void send(SecsMessage message, boolean wbit, Secs2 secs2) throws InterruptedException, SecsException {
+        send(message.getSourceAddress(), message,message.getStream(),message.getFunction()+1 ,wbit,secs2);
+    }
+    public void send(SecsMessage message, boolean wbit) throws InterruptedException, SecsException {
+        send( message ,wbit,Secs2.empty());
+    }
+
+
     public void send(SecsMessage message, int stream, int function, boolean wbit) throws InterruptedException, SecsException {
         send(message.getSourceAddress(), message,stream,function,wbit,Secs2.empty());
     }

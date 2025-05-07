@@ -4448,24 +4448,28 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer -> com.
     453:458:com.shimizukenta.secs.gem.Gem gem(java.net.SocketAddress) -> gem
     468:468:com.shimizukenta.secs.gem.Gem gem(com.shimizukenta.secs.SecsMessage) -> gem
     472:473:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
-    476:477:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean) -> send
-    494:499:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2) -> sendAndWaitReply
-    519:524:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2,long) -> sendAndWaitReply
-    539:553:void broadcastToAllClients(int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> broadcastToAllClients
-    562:562:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection getClientConnection(java.net.SocketAddress) -> getClientConnection
-    571:571:java.util.Collection getAllClientConnections() -> getAllClientConnections
-    580:580:int getClientCount() -> getClientCount
+    476:477:void send(com.shimizukenta.secs.SecsMessage) -> send
+    480:481:void send(com.shimizukenta.secs.SecsMessage,com.shimizukenta.secs.secs2.Secs2) -> send
+    483:484:void send(com.shimizukenta.secs.SecsMessage,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
+    486:487:void send(com.shimizukenta.secs.SecsMessage,boolean) -> send
+    491:492:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean) -> send
+    509:514:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2) -> sendAndWaitReply
+    534:539:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2,long) -> sendAndWaitReply
+    554:568:void broadcastToAllClients(int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> broadcastToAllClients
+    577:577:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection getClientConnection(java.net.SocketAddress) -> getClientConnection
+    586:586:java.util.Collection getAllClientConnections() -> getAllClientConnections
+    595:595:int getClientCount() -> getClientCount
     2128:2128:int com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager.getConnectionCount():128:128 -> getClientCount
-    2128:2128:int getClientCount():580 -> getClientCount
-    587:590:void stop() -> stop
-    599:627:void close() -> close
-    635:635:boolean isRunning() -> isRunning
-    644:644:boolean isClosed() -> isClosed
-    650:651:void addSecs1MessageReceiveBiListener(com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener) -> addSecs1MessageReceiveBiListener
-    659:659:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager getConnectionManager() -> getConnectionManager
-    664:665:void addSecsLogListener(com.shimizukenta.secs.SecsLogListener) -> addSecsLogListener
-    668:669:void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener) -> addReceiveMessagePassThroughListener
-    672:673:void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener) -> addSecsCommunicatableStateChangeListener
+    2128:2128:int getClientCount():595 -> getClientCount
+    602:605:void stop() -> stop
+    614:642:void close() -> close
+    650:650:boolean isRunning() -> isRunning
+    659:659:boolean isClosed() -> isClosed
+    665:666:void addSecs1MessageReceiveBiListener(com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener) -> addSecs1MessageReceiveBiListener
+    674:674:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager getConnectionManager() -> getConnectionManager
+    679:680:void addSecsLogListener(com.shimizukenta.secs.SecsLogListener) -> addSecsLogListener
+    683:684:void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener) -> addReceiveMessagePassThroughListener
+    687:688:void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener) -> addSecsCommunicatableStateChangeListener
     317:330:void lambda$handleNewConnection$2(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsLog) -> lambda$handleNewConnection$2
     3077:3078:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection.updateLastActivityTime():77:78 -> lambda$handleNewConnection$2
     3077:3078:void lambda$handleNewConnection$2(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsLog):317 -> lambda$handleNewConnection$2
