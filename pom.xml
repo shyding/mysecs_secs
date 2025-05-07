@@ -115,26 +115,107 @@
                         <version>2.5.2</version>
                         <executions>
                             <execution>
+                                <id>obfuscate</id>
                                 <phase>package</phase>
                                 <goals>
                                     <goal>proguard</goal>
                                 </goals>
                             </execution>
                         </executions>
+
+                        <!-- 确保混淆后的JAR包是主要成品 -->
+                        <dependencies>
+                            <dependency>
+                                <groupId>net.sf.proguard</groupId>
+                                <artifactId>proguard-base</artifactId>
+                                <version>6.2.2</version>
+                            </dependency>
+                        </dependencies>
                         <configuration>
-                            <!-- 指定混淆后的jar包名称 -->
-                            <outjar>${project.build.finalName}-obfuscated.jar</outjar>
+                            <!-- 指定混淆后的jar包名称，使用原始名称以便于安装 -->
+                            <outjar>${project.build.finalName}.jar</outjar>
+                            <!-- 备份原始的jar包 -->
+                            <injarNotExistsSkip>false</injarNotExistsSkip>
+                            <attachArtifactClassifier>original</attachArtifactClassifier>
+                            <attachArtifactClassifierType>jar</attachArtifactClassifierType>
                             <!-- 是否混淆 -->
                             <obfuscate>true</obfuscate>
                             <!-- 直接在pom.xml中定义混淆规则 -->
                             <options>
-                                <option>-dontoptimize</option>
+                                <!-- 启用更强的优化 -->
+                                <option>-optimizations !code/simplification/cast,!field/*,!class/merging/*,!code/allocation/variable</option>
+                                <option>-optimizationpasses 5</option>
+                                <option>-allowaccessmodification</option>
+                                <option>-useuniqueclassmembernames</option>
                                 <option>-dontpreverify</option>
                                 <option>-dontwarn</option>
                                 <option>-ignorewarnings</option>
                                 <option>-keepattributes *Annotation*</option>
-                                <option>-keep public class com.shimizukenta.secs.** { public *; }</option>
+                                <!-- 保留必要的公共API，但排除multiclient包 -->
+                                <option>-keep public class !com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**, com.shimizukenta.secs.** { public *; }</option>
+                                <option>-keep public interface !com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**, com.shimizukenta.secs.** { *; }</option>
+
+                                <!-- 对multiclient包进行更强的混淆 - 只保留MultiClientSecsServer和ClientConnection的公共方法 -->
+                                <!-- 其他所有类和方法都将被混淆 -->
+                                <option>-keep public class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer {
+                                    public &lt;init&gt;(...);
+                                    public *;
+                                    protected void addSecsLogListener(com.shimizukenta.secs.SecsLogListener);
+                                    protected void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener);
+                                    protected void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener);
+                                }</option>
+                                <option>-keep public class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection {
+                                    public ** getRemoteAddress();
+                                    public ** getCommunicator();
+                                    public ** isConnected();
+                                    public ** isClosed();
+                                }</option>
+                                <option>-dontwarn com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**</option>
+                                <!-- 更激进的混淆选项 -->
+                                <option>-overloadaggressively</option>
+                                <option>-repackageclasses ''</option>
+                                <option>-flattenpackagehierarchy ''</option>
+                                <option>-allowaccessmodification</option>
+                                <option>-mergeinterfacesaggressively</option>
+                                <option>-adaptclassstrings com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**</option>
+
+                                <!-- 对方法内部实现进行混淆 -->
+                                <option>-keepclassmembernames class * {
+                                    private &lt;fields&gt;;
+                                    private &lt;methods&gt;;
+                                    protected &lt;fields&gt;;
+                                    protected &lt;methods&gt;;
+                                }</option>
+                                <option>-keepattributes Exceptions,Signature,Deprecated,*Annotation*,EnclosingMethod</option>
+                                <option>-renamesourcefileattribute SourceFile</option>
+
+                                <!-- 混淆局部变量名 -->
+                                <option>-keepparameternames</option>
+                                <option>-adaptclassstrings</option>
+                                <option>-adaptresourcefilecontents</option>
+
+                                <!-- 混淆字符串常量 - 使用更兼容的方式 -->
+                                <!-- 对类名进行混淆 -->
+                                <option>-adaptclassstrings</option>
+                                <!-- 对资源文件内容进行混淆 -->
+                                <option>-adaptresourcefilecontents</option>
+                                <!-- 使用更激进的混淆选项 -->
+                                <option>-obfuscationdictionary dictionary.txt</option>
+                                <option>-classobfuscationdictionary dictionary.txt</option>
+                                <option>-packageobfuscationdictionary dictionary.txt</option>
+
+                                <!-- 对Secs1OnTcpIpMultiClientCommunicator进行完全混淆，只保留工厂方法 -->
+                                <option>-keepclassmembers class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator {
+                                    public static ** newInstance(...);
+                                    public static ** open(...);
+                                }</option>
                                 <option>-verbose</option>
+
+                                <!-- 生成混淆报告 -->
+                                <option>-printmapping ${project.build.directory}/proguard-mapping.txt</option>
+                                <option>-printseeds ${project.build.directory}/proguard-seeds.txt</option>
+                                <option>-printusage ${project.build.directory}/proguard-usage.txt</option>
+                                <option>-printconfiguration ${project.build.directory}/proguard-configuration.txt</option>
                             </options>
                             <libs>
                                 <!-- 添加JDK库路径 -->
@@ -146,6 +227,24 @@
                             <!-- 指定输出目录 -->
                             <outputDirectory>${project.build.directory}</outputDirectory>
                         </configuration>
+                    </plugin>
+                    <!-- 确保混淆后的JAR包被正确安装 -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-install-plugin</artifactId>
+                        <version>3.1.1</version>
+                        <executions>
+                            <execution>
+                                <id>default-install</id>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>install</goal>
+                                </goals>
+                                <configuration>
+                                    <createChecksum>true</createChecksum>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

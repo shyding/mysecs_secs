@@ -1,0 +1,147 @@
+-injars 'E:\work\idea\wk1\secs4java8\target\secs4java8-5.1_proguard_base.jar'(!META-INF/maven/**)
+-outjars 'E:\work\idea\wk1\secs4java8\target\secs4java8-5.1.jar'
+
+-libraryjars 'E:\app\.m2\repository\net\sf\proguard\proguard-base\6.2.2\proguard-base-6.2.2.jar'
+-libraryjars 'E:\software\jdk1.8.0_201\jre\lib\rt.jar'
+-libraryjars 'E:\software\jdk1.8.0_201\jre\lib\jce.jar'
+
+-printusage 'E:\work\idea\wk1\secs4java8\target\proguard-usage.txt'
+-optimizations !code/simplification/arithmetic,!field/*,!class/merging/*,!code/allocation/variable,!code/simplification/cast,!field/*,!class/merging/*,!code/allocation/variable,!code/simplification/cast,!field/*,!class/merging/*,!code/allocation/variable
+-optimizationpasses 5
+-allowaccessmodification
+-mergeinterfacesaggressively
+-printmapping 'E:\work\idea\wk1\secs4java8\target\proguard-mapping.txt'
+-obfuscationdictionary 'E:\work\idea\wk1\secs4java8\dictionary.txt'
+-classobfuscationdictionary 'E:\work\idea\wk1\secs4java8\dictionary.txt'
+-packageobfuscationdictionary 'E:\work\idea\wk1\secs4java8\dictionary.txt'
+-overloadaggressively
+-useuniqueclassmembernames
+-flattenpackagehierarchy ''
+-repackageclasses ''
+-keepattributes Signature,Exceptions,*Annotation*,SourceFile,LineNumberTable,Exceptions,InnerClasses,Signature,Deprecated,*Annotation*,EnclosingMethod,!LineNumberTable,!LocalVariableTable,!LocalVariableTypeTable,*Annotation*,Exceptions,Signature,Deprecated,*Annotation*,EnclosingMethod
+-keepparameternames
+-renamesourcefileattribute SourceFile
+-adaptclassstrings com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**,com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**
+-adaptresourcefilecontents **.properties
+-dontpreverify
+-verbose
+-dontwarn com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**
+-ignorewarnings
+-printconfiguration 'E:\work\idea\wk1\secs4java8\target\proguard-configuration.txt'
+-printseeds 'E:\work\idea\wk1\secs4java8\target\proguard-seeds.txt'
+
+
+
+# 保留必要的公共API，但排除multiclient包
+-keep public class !com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**,com.shimizukenta.secs.** {
+    public protected <fields>;
+    public protected <methods>;
+}
+
+-keep public interface  !com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**,com.shimizukenta.secs.** {
+    <fields>;
+    <methods>;
+}
+
+# 对multiclient包进行更强的混淆 - 只保留MultiClientSecsServer和ClientConnection的公共方法
+# 其他所有类和方法都将被混淆
+-keepclassmembers class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator {
+    public static ** newInstance(...);
+    public static ** open(...);
+}
+
+-keep public class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer {
+    public <fields>;
+    public <init>(...);
+    public <methods>;
+    protected void addSecsLogListener(com.shimizukenta.secs.SecsLogListener);
+    protected void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener);
+    protected void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener);
+}
+
+-keep public class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection {
+    public ** getRemoteAddress();
+    public ** getCommunicator();
+    public ** isConnected();
+    public ** isClosed();
+}
+
+# 保留枚举
+-keepclassmembers enum  * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# 保留Serializable
+-keepclassmembers class * extends java.io.Serializable {
+    static final long serialVersionUID;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
+
+# 保留native方法
+-keepclasseswithmembers,allowshrinking class * {
+    native <methods>;
+}
+
+# 对Secs1OnTcpIpMultiClientCommunicator进行完全混淆，只保留工厂方法
+-keepclassmembers class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator {
+    static ** newInstance(...);
+    static ** open(...);
+}
+
+# 对方法内部实现进行混淆
+-keepclassmembers,allowshrinking class * {
+    private <fields>;
+    protected <fields>;
+    private <methods>;
+    protected <methods>;
+}
+
+-keep public class !com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**,com.shimizukenta.secs.** {
+    public <fields>;
+    public <methods>;
+}
+
+-keep public interface  !com.shimizukenta.secs.secs1ontcpip.ext.multiclient.**,com.shimizukenta.secs.** {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer {
+    public <fields>;
+    public <init>(...);
+    public <methods>;
+    protected void addSecsLogListener(com.shimizukenta.secs.SecsLogListener);
+    protected void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener);
+    protected void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener);
+}
+
+-keep public class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection {
+    public ** getRemoteAddress();
+    public ** getCommunicator();
+    public ** isConnected();
+    public ** isClosed();
+}
+
+-keepclassmembers,allowshrinking class * {
+    private <fields>;
+    protected <fields>;
+    private <methods>;
+    protected <methods>;
+}
+
+-keepclassmembers class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator {
+    public static ** newInstance(...);
+    public static ** open(...);
+}
+
+# 特别处理multiclient包
+-assumenosideeffects class com.shimizukenta.secs.secs1ontcpip.ext.multiclient.** {
+    private void debug(...);
+    private void log(...);
+    private static void debug(...);
+    private static void log(...);
+}
