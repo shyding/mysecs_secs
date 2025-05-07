@@ -458,7 +458,7 @@ public class MultiClientSecsServerTest {
         int func = primaryMsg.getFunction();
         boolean wbit = primaryMsg.wbit();
         logger.info(String.format("收到主机消息: S%dF%d%s", strm, func, (wbit ? " W" : "")));
-        System.out.println("MultiClientSecsServerTest.hostReceiveListener: ");
+        System.out.println("MultiClientSecsServerTest.hostReceiveListener: " + primaryMsg.getSourceAddress());
         try {
 
             switch (strm) {

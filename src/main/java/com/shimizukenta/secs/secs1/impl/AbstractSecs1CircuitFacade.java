@@ -30,6 +30,7 @@ import com.shimizukenta.secs.secs1.Secs1TimeoutT2Exception;
 import com.shimizukenta.secs.secs1.Secs1TimeoutT3Exception;
 import com.shimizukenta.secs.secs1.Secs1TimeoutT4Exception;
 import com.shimizukenta.secs.secs1.Secs1WaitReplyMessageException;
+import com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator;
 
 public abstract class AbstractSecs1CircuitFacade implements Runnable {
 
@@ -832,10 +833,21 @@ public abstract class AbstractSecs1CircuitFacade implements Runnable {
 
 			try {
 				AbstractSecs1Message s1msg = Secs1MessageBuilder.buildFromBlocks(cacheBlocks);
-
 				Secs1Message m = this.transMgr.put(s1msg);
+//                s1msg.setSourceAddress(this.comm.g);
+				boolean bMultiClient = this.comm instanceof AbstractSecs1OnTcpIpMultiClientCommunicator;
+				AbstractSecs1OnTcpIpMultiClientCommunicator comm1 = null;
+				if( bMultiClient ){
+					 comm1 = (AbstractSecs1OnTcpIpMultiClientCommunicator) this.comm;
+					s1msg.setSourceAddress(comm1.getRemoteSocketAddress());
 
+				}
+
+//                 m.setSourceAddress( );
 				if (m != null) {
+					if( bMultiClient ){
+						m.setSourceAddress(comm1.getRemoteSocketAddress());
+					}
 					this.comm.secs1MessageReceiveObserver().putSecs1Message(m);
 				}
 

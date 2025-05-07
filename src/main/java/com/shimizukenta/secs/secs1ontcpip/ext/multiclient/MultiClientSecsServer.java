@@ -1,6 +1,8 @@
 package com.shimizukenta.secs.secs1ontcpip.ext.multiclient;
 
 import com.shimizukenta.secs.*;
+import com.shimizukenta.secs.gem.Gem;
+import com.shimizukenta.secs.impl.AbstractSecsCommunicator;
 import com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpLogObservable;
 import com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig;
@@ -18,6 +20,7 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.ReadPendingException;
 import java.nio.channels.WritePendingException;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,7 +34,7 @@ import java.util.logging.Logger;
 /**
  * 多客户端SECS服务器
  */
-public class MultiClientSecsServer implements Closeable {
+public class MultiClientSecsServer  implements Closeable {
 
     private static final Logger logger = Logger.getLogger(MultiClientSecsServer.class.getName());
 
@@ -55,6 +58,10 @@ public class MultiClientSecsServer implements Closeable {
     private Consumer<ClientConnection> clientDisconnectedHandler;
     private BiConsumer<SecsMessage, SocketAddress> messageReceivedHandler;
     SecsMessageReceiveListener listener;
+    private SecsLogListener secsLogListener;
+    private SecsMessagePassThroughListener secsMessagePassThroughListener;
+    private SecsCommunicatableStateChangeListener secsCommunicatableStateChangeListener;
+
     /**
      * 构造函数
      *
@@ -253,7 +260,15 @@ public class MultiClientSecsServer implements Closeable {
 
                     if (this.listener != null) {
                         connection.getCommunicator().addSecsMessageReceiveListener(this.listener);
-                    } else {
+                    }
+                    if(Objects.nonNull(secsLogListener)){
+                        connection.getCommunicator().addSecsLogListener(secsLogListener);
+                    }
+                /*    if(Objects.nonNull(secsMessagePassThroughListener)){
+                        connection.getCommunicator().addReceiveSecsMessagePassThroughLogListener(secsMessagePassThroughListener);
+                    }*/
+                    if(Objects.nonNull(secsCommunicatableStateChangeListener)){
+                        connection.getCommunicator().addSecsCommunicatableStateChangeListener(secsCommunicatableStateChangeListener);
                     }
 
                     // 打开连接
@@ -331,7 +346,7 @@ public class MultiClientSecsServer implements Closeable {
 
         } catch (IOException e) {
             logger.log(Level.WARNING, "处理新连接失败: " + e.getMessage(), e);
-            System.out.println("处理新连接失败: " + e.getMessage());
+
         }
     }
 
@@ -388,6 +403,9 @@ public class MultiClientSecsServer implements Closeable {
         }
     }
 
+    public void send(SocketAddress clientAddress,SecsMessage message, int stream, int function, boolean wbit) throws InterruptedException, SecsException {
+         send(clientAddress, message,stream,function,wbit,Secs2.empty());
+    }
     /**
      * 向客户端发送消息（简化版）
      *
@@ -417,12 +435,43 @@ public class MultiClientSecsServer implements Closeable {
         ClientConnection connection = connectionManager.getConnection(clientAddress);
         if (connection != null && !connection.isClosed()) {
             connection.getCommunicator().send(stream, function, wbit, secs2);
+
         } else {
             logger.warning("找不到客户端连接或连接已关闭: " + clientAddress);
             throw new SecsSendMessageException("Client connection not found or closed: " + clientAddress);
         }
     }
 
+    /**
+     * 向客户端发送消息并等待回复
+     * @param clientAddress
+     * @return
+     */
+    public Gem gem(SocketAddress clientAddress) {
+        ClientConnection connection = connectionManager.getConnection(clientAddress);
+        if (connection != null && !connection.isClosed()) {
+            Gem gem = connection.getCommunicator().gem();
+        }
+        return null;
+    }
+
+    /**
+     * 向客户端发送消息并等待回复
+     * @param message
+     * @return
+     */
+    public Gem gem(SecsMessage message ){
+
+        return gem(message.getSourceAddress());
+    }
+
+    public void send(SecsMessage message, int stream, int function, boolean wbit, Secs2 secs2) throws InterruptedException, SecsException {
+        send(message.getSourceAddress(), message,stream,function,wbit,secs2);
+    }
+
+    public void send(SecsMessage message, int stream, int function, boolean wbit) throws InterruptedException, SecsException {
+        send(message.getSourceAddress(), message,stream,function,wbit,Secs2.empty());
+    }
 
     /**
      * 向客户端发送消息并等待回复
@@ -605,5 +654,18 @@ public class MultiClientSecsServer implements Closeable {
      */
     public ClientConnectionManager getConnectionManager() {
         return this.connectionManager;
+    }
+
+    protected void addSecsLogListener(SecsLogListener secsLogListener) {
+        
+        this.secsLogListener = secsLogListener;
+    }
+
+    protected void addReceiveMessagePassThroughListener(SecsMessagePassThroughListener secsMessagePassThroughListener) {
+           this.secsMessagePassThroughListener = secsMessagePassThroughListener;
+        }
+
+    protected void addSecsCommunicatableStateChangeListener(SecsCommunicatableStateChangeListener secsCommunicatableStateChangeListener) {
+             this.secsCommunicatableStateChangeListener = secsCommunicatableStateChangeListener;
     }
 }
