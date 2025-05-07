@@ -59,7 +59,7 @@ public class MultiClientSecsServer  implements Closeable {
     private BiConsumer<SecsMessage, SocketAddress> messageReceivedHandler;
     SecsMessageReceiveListener listener;
     private SecsLogListener secsLogListener;
-    private SecsMessagePassThroughListener secsMessagePassThroughListener;
+    private SecsMessagePassThroughListener  secsMessagePassThroughListener;
     private SecsCommunicatableStateChangeListener secsCommunicatableStateChangeListener;
 
     /**
@@ -264,9 +264,10 @@ public class MultiClientSecsServer  implements Closeable {
                     if(Objects.nonNull(secsLogListener)){
                         connection.getCommunicator().addSecsLogListener(secsLogListener);
                     }
-                /*    if(Objects.nonNull(secsMessagePassThroughListener)){
-                        connection.getCommunicator().addReceiveSecsMessagePassThroughLogListener(secsMessagePassThroughListener);
-                    }*/
+                    if(Objects.nonNull(secsMessagePassThroughListener)){
+                        connection.getCommunicator().addSendedSecs1MessagePassThroughListener(secsMessagePassThroughListener);
+
+                    }
                     if(Objects.nonNull(secsCommunicatableStateChangeListener)){
                         connection.getCommunicator().addSecsCommunicatableStateChangeListener(secsCommunicatableStateChangeListener);
                     }
@@ -327,6 +328,7 @@ public class MultiClientSecsServer  implements Closeable {
                             System.out.println("处理日志消息失败: " + e.getMessage());
                         }
                     });
+
 
                     // 调用客户端连接处理器
                     if (clientConnectedHandler != null) {
