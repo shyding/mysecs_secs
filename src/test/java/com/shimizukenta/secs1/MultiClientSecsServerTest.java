@@ -50,6 +50,7 @@ public class MultiClientSecsServerTest {
             config.timeout().t6(5.0F);   // 设置T6超时为5秒
             config.timeout().t8(5.0F);   // 设置T8超时为5秒
             config.deviceId(7);
+            config.isCheckMessageBlockDeviceId( false);
 
             // 创建并启动服务器
             MultiClientSecsServer server = new MultiClientSecsServer(config);
