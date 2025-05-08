@@ -29,8 +29,6 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ExceptionUtil
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker:
     94:106:private java.net.SocketAddress findMostRecentAddress()
     115:124:public void clearMessageSource(com.shimizukenta.secs.SecsMessage)
-com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator:
-    public abstract java.net.SocketAddress getRemoteSocketAddress()
 com.shimizukenta.secs.secs2.impl.Secs2Ascii:
     private static final byte BACKSLASH
 com.shimizukenta.secs.secs2.impl.Secs2Boolean:

@@ -674,12 +674,20 @@ public abstract class AbstractSecs1CircuitFacade implements Runnable {
 						} else if (b.byteValue() == EOT) {
 
 							if (this.sending(pack.present())) {
-
+								Secs1Message message = pack.message;
 								if (pack.ebit()) {
+									boolean bMultiClient = this.comm instanceof AbstractSecs1OnTcpIpMultiClientCommunicator;
+									AbstractSecs1OnTcpIpMultiClientCommunicator comm1 = null;
+									if( bMultiClient ){
+										comm1 = (AbstractSecs1OnTcpIpMultiClientCommunicator) this.comm;
+										message.setSourceAddress(comm1.getRemoteSocketAddress());
+										message.setOutBound( true );
 
-									this.sendMgr.putSended(pack.message);
+									}
 
-									this.comm.notifySendedSecs1MessagePassThrough(pack.message);
+									this.sendMgr.putSended(message);
+
+									this.comm.notifySendedSecs1MessagePassThrough(message);
 
 									return;
 

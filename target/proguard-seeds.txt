@@ -91,8 +91,10 @@ com.shimizukenta.secs.SecsMessage: int deviceId()
 com.shimizukenta.secs.SecsMessage: int sessionId()
 com.shimizukenta.secs.SecsMessage: byte[] header10Bytes()
 com.shimizukenta.secs.SecsMessage: java.lang.String toJson()
+com.shimizukenta.secs.SecsMessage: boolean isOutBound()
 com.shimizukenta.secs.SecsMessage: java.net.SocketAddress getSourceAddress()
 com.shimizukenta.secs.SecsMessage: void setSourceAddress(java.net.SocketAddress)
+com.shimizukenta.secs.SecsMessage: void setOutBound(boolean)
 com.shimizukenta.secs.SecsMessagePassThroughListener
 com.shimizukenta.secs.SecsMessagePassThroughListener: void passThrough(java.lang.Object)
 com.shimizukenta.secs.SecsMessagePassThroughLog
@@ -1881,9 +1883,12 @@ com.shimizukenta.secs.impl.AbstractSecsMessageReceiveObserverFacade$SecsMsgRecvQ
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: long serialVersionUID
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: java.net.SocketAddress sourceAddr
+com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: boolean isOutBound
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: AbstractSecsMessageWithSource()
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: java.net.SocketAddress getSourceAddress()
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: void setSourceAddress(java.net.SocketAddress)
+com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: boolean isOutBound()
+com.shimizukenta.secs.impl.AbstractSecsMessageWithSource: void setOutBound(boolean)
 com.shimizukenta.secs.impl.AbstractSecsThrowableLog
 com.shimizukenta.secs.impl.AbstractSecsThrowableLog: long serialVersionUID
 com.shimizukenta.secs.impl.AbstractSecsThrowableLog: java.lang.Object sync
@@ -3825,6 +3830,7 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClie
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: java.nio.channels.AsynchronousSocketChannel channel
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: java.net.SocketAddress remoteSocketAddress
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpLogObserverFacade secs1OnTcpIpLogObserver
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer server
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: java.lang.Object readLock
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: java.lang.Thread readingThread
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator: java.util.concurrent.atomic.AtomicBoolean opened
@@ -3850,6 +3856,8 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager: java
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager: long heartbeatInterval
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager: long connectionTimeout
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager: void checkConnections()
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManagerWithHandlers: java.util.logging.Logger logger
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManagerWithHandlers: java.util.function.Consumer clientDisconnectedHandler
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker: java.util.logging.Logger logger
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker: java.util.Map messageSourceMap
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker: java.util.Map receiveTimeAddressMap

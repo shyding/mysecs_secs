@@ -46,6 +46,9 @@ public abstract class AbstractSecs1OnTcpIpMultiClientCommunicator extends Abstra
     private final SocketAddress remoteSocketAddress;
     private final AbstractSecs1OnTcpIpLogObserverFacade secs1OnTcpIpLogObserver;
 
+    // 服务器引用
+    protected MultiClientSecsServer server;
+
 
 
     /**
@@ -161,6 +164,11 @@ public abstract class AbstractSecs1OnTcpIpMultiClientCommunicator extends Abstra
                 }
 
                 logger.info("Exited read loop for channel: " + remoteAddress);
+
+                // 通知服务器移除该连接
+                if (server != null) {
+                    server.getConnectionManager().removeConnection(remoteAddress);
+                }
             }
             catch (InterruptedException ignore) {
                 // 线程被中断，退出读取循环
@@ -220,14 +228,7 @@ public abstract class AbstractSecs1OnTcpIpMultiClientCommunicator extends Abstra
             }
         }
     }
-    /**
-     * 获取远程地址
-     *
-     * @return 远程地址
-     */
-    public SocketAddress getRemoteSocketAddress() {
-        return remoteSocketAddress;
-    }
+
 
 
     @Override
@@ -483,6 +484,26 @@ public abstract class AbstractSecs1OnTcpIpMultiClientCommunicator extends Abstra
         boolean result = isOpened && isChannelOpen;
 
         return result;
+    }
+
+    /**
+     * 获取远程地址
+     *
+     * @return 远程地址
+     */
+
+    public SocketAddress getRemoteSocketAddress() {
+        return this.remoteSocketAddress;
+    }
+
+    /**
+     * 设置服务器引用
+     *
+     * @param server 服务器实例
+     */
+    @Override
+    public void setServer(MultiClientSecsServer server) {
+        this.server = server;
     }
 
 }

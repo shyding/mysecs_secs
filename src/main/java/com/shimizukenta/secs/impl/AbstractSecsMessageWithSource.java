@@ -13,6 +13,8 @@ public abstract class AbstractSecsMessageWithSource extends AbstractSecsMessage 
     private static final long serialVersionUID = 1L;
     
     private SocketAddress sourceAddr;
+
+    private boolean isOutBound;
     
 // 定义一个受保护的构造函数，用于创建AbstractSecsMessageWithSource类的实例
     protected AbstractSecsMessageWithSource() {
@@ -39,5 +41,14 @@ public abstract class AbstractSecsMessageWithSource extends AbstractSecsMessage 
     public void setSourceAddress(SocketAddress addr) {
         this.sourceAddr = addr;
     }
-    
+
+
+    @Override
+    public boolean isOutBound() {
+        return isOutBound;
+    }
+
+    public void setOutBound(boolean outBound) {
+        isOutBound = outBound;
+    }
 }

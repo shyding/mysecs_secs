@@ -85,6 +85,10 @@ public interface SecsMessage {
 	 */
 	public String toJson();
 
+	default boolean isOutBound(){
+		return false;
+	};
+
 	/**
 	 * Returns Message Source Address.
 	 *
@@ -102,4 +106,5 @@ public interface SecsMessage {
 	default public void setSourceAddress(SocketAddress addr) {
 		/* Nothing */
 	}
+	default void setOutBound(boolean outBound) {}
 }

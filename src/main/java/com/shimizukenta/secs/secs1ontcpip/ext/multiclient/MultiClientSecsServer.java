@@ -44,7 +44,7 @@ public class MultiClientSecsServer  implements Closeable {
     private final long heartbeatInterval;
     private final long connectionTimeout;
 
-    private final ClientConnectionManager connectionManager;
+    private ClientConnectionManager connectionManager;
     private final ExecutorService executor;
     private final AsynchronousChannelGroup channelGroup;
     private AsynchronousServerSocketChannel serverChannel;
@@ -81,7 +81,7 @@ public class MultiClientSecsServer  implements Closeable {
         this.heartbeatInterval = heartbeatInterval;
         this.connectionTimeout = connectionTimeout;
 
-        this.connectionManager = new ClientConnectionManager(config, heartbeatInterval, connectionTimeout);
+        // 初始化时不创建连接管理器，等待设置处理器后再创建
         this.executor = Executors.newCachedThreadPool();
         this.channelGroup = AsynchronousChannelGroup.withThreadPool(executor);
     }
@@ -119,6 +119,16 @@ public class MultiClientSecsServer  implements Closeable {
      */
     public void setClientDisconnectedHandler(Consumer<ClientConnection> handler) {
         this.clientDisconnectedHandler = handler;
+
+        // 如果连接管理器已经创建，重新创建一个带有断开连接处理器的管理器
+        if (this.connectionManager != null) {
+            // 创建新的连接管理器
+            this.connectionManager = new ClientConnectionManagerWithHandlers(
+                    this.config,
+                    this.heartbeatInterval,
+                    this.connectionTimeout,
+                    this.clientDisconnectedHandler);
+        }
     }
 
     /**
@@ -179,6 +189,22 @@ public class MultiClientSecsServer  implements Closeable {
 
         if (running.compareAndSet(false, true)) {
             try {
+                // 创建连接管理器，如果还没有创建
+                if (this.connectionManager == null) {
+                    if (this.clientDisconnectedHandler != null) {
+                        this.connectionManager = new ClientConnectionManagerWithHandlers(
+                                this.config,
+                                this.heartbeatInterval,
+                                this.connectionTimeout,
+                                this.clientDisconnectedHandler);
+                    } else {
+                        this.connectionManager = new ClientConnectionManager(
+                                this.config,
+                                this.heartbeatInterval,
+                                this.connectionTimeout);
+                    }
+                }
+
                 // 创建服务器通道
                 serverChannel = AsynchronousServerSocketChannel.open(channelGroup);
                 serverChannel.bind(new InetSocketAddress(host, port));
@@ -271,6 +297,9 @@ public class MultiClientSecsServer  implements Closeable {
                     if(Objects.nonNull(secsCommunicatableStateChangeListener)){
                         connection.getCommunicator().addSecsCommunicatableStateChangeListener(secsCommunicatableStateChangeListener);
                     }
+
+                    // 设置服务器引用
+                    connection.getCommunicator().setServer(this);
 
                     // 打开连接
                     if (!connection.getCommunicator().isOpen()) {
@@ -675,7 +704,7 @@ public class MultiClientSecsServer  implements Closeable {
     }
 
     protected void addSecsLogListener(SecsLogListener secsLogListener) {
-        
+
         this.secsLogListener = secsLogListener;
     }
 

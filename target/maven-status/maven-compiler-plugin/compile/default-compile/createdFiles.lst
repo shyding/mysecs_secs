@@ -454,6 +454,7 @@ com\shimizukenta\secs\gem\impl\AbstractDynamicCollectionEvent.class
 com\shimizukenta\secs\local\property\impl\NumberUtils$InnerCollectionInteger.class
 com\shimizukenta\secs\secs1\Secs1SendMessageException.class
 com\shimizukenta\secs\util\EntityMessageReceiveListener.class
+com\shimizukenta\secs\secs1ontcpip\ext\multiclient\ClientConnectionManagerWithHandlers.class
 com\shimizukenta\secs\secs2\Secs2IllegalDataFormatException.class
 com\shimizukenta\secs\gem\TIACK.class
 com\shimizukenta\secs\local\property\impl\StringUtils$InnerStringJoining$Inner.class

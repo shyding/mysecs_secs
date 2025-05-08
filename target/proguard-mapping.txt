@@ -94,8 +94,10 @@ com.shimizukenta.secs.SecsMessage -> com.shimizukenta.secs.SecsMessage:
     int sessionId() -> sessionId
     byte[] header10Bytes() -> header10Bytes
     java.lang.String toJson() -> toJson
-    94:94:java.net.SocketAddress getSourceAddress() -> getSourceAddress
-    104:104:void setSourceAddress(java.net.SocketAddress) -> setSourceAddress
+    89:89:boolean isOutBound() -> isOutBound
+    98:98:java.net.SocketAddress getSourceAddress() -> getSourceAddress
+    108:108:void setSourceAddress(java.net.SocketAddress) -> setSourceAddress
+    109:109:void setOutBound(boolean) -> setOutBound
 com.shimizukenta.secs.SecsMessagePassThroughListener -> com.shimizukenta.secs.SecsMessagePassThroughListener:
     void passThrough(java.lang.Object) -> passThrough
 com.shimizukenta.secs.SecsMessagePassThroughLog -> com.shimizukenta.secs.SecsMessagePassThroughLog:
@@ -2100,9 +2102,12 @@ com.shimizukenta.secs.impl.AbstractSecsMessageReceiveObserverFacade$SecsMsgRecvQ
 com.shimizukenta.secs.impl.AbstractSecsMessageWithSource -> com.shimizukenta.secs.impl.AbstractSecsMessageWithSource:
     long serialVersionUID -> serialVersionUID
     java.net.SocketAddress sourceAddr -> sourceAddr
-    20:23:void <init>() -> <init>
-    31:31:java.net.SocketAddress getSourceAddress() -> getSourceAddress
-    40:41:void setSourceAddress(java.net.SocketAddress) -> setSourceAddress
+    boolean isOutBound -> isOutBound
+    22:25:void <init>() -> <init>
+    33:33:java.net.SocketAddress getSourceAddress() -> getSourceAddress
+    42:43:void setSourceAddress(java.net.SocketAddress) -> setSourceAddress
+    48:48:boolean isOutBound() -> isOutBound
+    52:53:void setOutBound(boolean) -> setOutBound
 com.shimizukenta.secs.impl.AbstractSecsThrowableLog -> com.shimizukenta.secs.impl.AbstractSecsThrowableLog:
     long serialVersionUID -> serialVersionUID
     java.lang.Object sync -> sync
@@ -3890,7 +3895,7 @@ com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade -> com.shimizukenta.
     java.util.LinkedList cacheBlocks -> cacheBlocks
     43:48:java.lang.Integer systemBytesKey(com.shimizukenta.secs.secs1.Secs1Message) -> systemBytesKey
     52:57:java.lang.Integer systemBytesKey(com.shimizukenta.secs.secs1.Secs1MessageBlock) -> systemBytesKey
-    480:744:void <init>(com.shimizukenta.secs.secs1.impl.AbstractSecs1Communicator) -> <init>
+    480:752:void <init>(com.shimizukenta.secs.secs1.impl.AbstractSecs1Communicator) -> <init>
     494:499:void run() -> run
     504:547:void putBytes(byte[]) -> putBytes
     550:551:void sendBytes(byte[]) -> sendBytes
@@ -3906,7 +3911,7 @@ com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade -> com.shimizukenta.
     3035:3035:java.lang.Integer access$000(com.shimizukenta.secs.secs1.Secs1Message):35:35 -> send
     3035:3035:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.enter(com.shimizukenta.secs.secs1.Secs1Message):361 -> send
     3035:3035:java.util.Optional send(com.shimizukenta.secs.secs1.Secs1Message):570 -> send
-    620:716:void enter() -> enter
+    620:724:void enter() -> enter
     3071:3071:boolean com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$ByteOrSecs1Message.isENQ():71:71 -> enter
     3071:3071:void enter():629 -> enter
     3092:3093:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1MessageBlockPack.reset():92:93 -> enter
@@ -3915,34 +3920,36 @@ com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade -> com.shimizukenta.
     4088:4088:void enter():676 -> enter
     4100:4100:boolean com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1MessageBlockPack.ebit():100:100 -> enter
     4100:4100:void enter():678 -> enter
-    4300:4304:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1SendMessageManager.putSended(com.shimizukenta.secs.secs1.Secs1Message):300:304 -> enter
-    4300:4304:void enter():680 -> enter
-    5096:5097:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1MessageBlockPack.next():96:97 -> enter
-    5096:5097:void enter():688 -> enter
-    721:740:boolean sending(com.shimizukenta.secs.secs1.Secs1MessageBlock) -> sending
-    748:879:void receiving() -> receiving
-    5417:5426:com.shimizukenta.secs.secs1.Secs1Message com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.put(com.shimizukenta.secs.secs1.Secs1Message):417:426 -> receiving
-    5417:5426:void receiving():836 -> receiving
-    5465:5469:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager$Pack.putReplyMsg(com.shimizukenta.secs.secs1.Secs1Message):465:469 -> receiving
-    5465:5469:com.shimizukenta.secs.secs1.Secs1Message com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.put(com.shimizukenta.secs.secs1.Secs1Message):425 -> receiving
-    5465:5469:void receiving():836 -> receiving
-    6229:6229:java.net.SocketAddress com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator.getRemoteSocketAddress():229:229 -> receiving
-    6229:6229:void receiving():842 -> receiving
-    7229:7229:java.net.SocketAddress com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator.getRemoteSocketAddress():229:229 -> receiving
-    7229:7229:void receiving():849 -> receiving
-    7432:7437:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.resetTimer(com.shimizukenta.secs.secs1.Secs1MessageBlock):432:437 -> receiving
-    7432:7437:void receiving():862 -> receiving
-    8035:8035:java.lang.Integer access$100(com.shimizukenta.secs.secs1.Secs1MessageBlock):35:35 -> receiving
-    8035:8035:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.resetTimer(com.shimizukenta.secs.secs1.Secs1MessageBlock):432 -> receiving
-    8035:8035:void receiving():862 -> receiving
-    8450:8454:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager$Pack.resetTimer():450:454 -> receiving
-    8450:8454:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.resetTimer(com.shimizukenta.secs.secs1.Secs1MessageBlock):435 -> receiving
-    8450:8454:void receiving():862 -> receiving
+    4496:4496:java.net.SocketAddress com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator.getRemoteSocketAddress():496:496 -> enter
+    4496:4496:void enter():683 -> enter
+    5300:5304:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1SendMessageManager.putSended(com.shimizukenta.secs.secs1.Secs1Message):300:304 -> enter
+    5300:5304:void enter():688 -> enter
+    6096:6097:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1MessageBlockPack.next():96:97 -> enter
+    6096:6097:void enter():696 -> enter
+    729:748:boolean sending(com.shimizukenta.secs.secs1.Secs1MessageBlock) -> sending
+    756:887:void receiving() -> receiving
+    6417:6426:com.shimizukenta.secs.secs1.Secs1Message com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.put(com.shimizukenta.secs.secs1.Secs1Message):417:426 -> receiving
+    6417:6426:void receiving():844 -> receiving
+    6465:6469:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager$Pack.putReplyMsg(com.shimizukenta.secs.secs1.Secs1Message):465:469 -> receiving
+    6465:6469:com.shimizukenta.secs.secs1.Secs1Message com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.put(com.shimizukenta.secs.secs1.Secs1Message):425 -> receiving
+    6465:6469:void receiving():844 -> receiving
+    6496:6496:java.net.SocketAddress com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator.getRemoteSocketAddress():496:496 -> receiving
+    6496:6496:void receiving():850 -> receiving
+    7496:7496:java.net.SocketAddress com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator.getRemoteSocketAddress():496:496 -> receiving
+    7496:7496:void receiving():857 -> receiving
+    8432:8437:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.resetTimer(com.shimizukenta.secs.secs1.Secs1MessageBlock):432:437 -> receiving
+    8432:8437:void receiving():870 -> receiving
+    9035:9035:java.lang.Integer access$100(com.shimizukenta.secs.secs1.Secs1MessageBlock):35:35 -> receiving
+    9035:9035:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.resetTimer(com.shimizukenta.secs.secs1.Secs1MessageBlock):432 -> receiving
+    9035:9035:void receiving():870 -> receiving
+    9450:9454:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager$Pack.resetTimer():450:454 -> receiving
+    9450:9454:void com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$Secs1TransactionManager.resetTimer(com.shimizukenta.secs.secs1.Secs1MessageBlock):435 -> receiving
+    9450:9454:void receiving():870 -> receiving
     35:35:java.lang.Integer access$000(com.shimizukenta.secs.secs1.Secs1Message) -> a
 com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$1 -> com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$1:
     long serialVersionUID -> serialVersionUID
     com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade this$0 -> a
-    786:786:void <init>(com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade,byte[]) -> <init>
+    794:794:void <init>(com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade,byte[]) -> <init>
 com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$ByteAndSecs1MessageQueue -> com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$a:
     java.lang.Object sync -> sync
     java.util.concurrent.BlockingQueue bb -> bb
@@ -4335,24 +4342,26 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClie
     java.nio.channels.AsynchronousSocketChannel channel -> channel
     java.net.SocketAddress remoteSocketAddress -> a
     com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpLogObserverFacade secs1OnTcpIpLogObserver -> secs1OnTcpIpLogObserver
+    com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer server -> server
     java.lang.Object readLock -> readLock
     java.lang.Thread readingThread -> readingThread
     java.util.concurrent.atomic.AtomicBoolean opened -> opened
-    62:242:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> <init>
-    84:174:void reading(java.nio.channels.AsynchronousSocketChannel) -> reading
-    178:183:java.nio.channels.AsynchronousSocketChannel getChannel() -> getChannel
-    190:222:void sendBytes(byte[]) -> sendBytes
-    235:235:com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpLogObserverFacade secs1OnTcpIpLogObserver() -> secs1OnTcpIpLogObserver
-    252:346:void open() -> open
-    357:429:void close() -> close
-    446:450:com.shimizukenta.secs.SecsMessage sendAndWaitReply(int,int,com.shimizukenta.secs.secs2.Secs2) -> a
-    471:471:com.shimizukenta.secs.SecsMessage sendAndWaitReply$4524968b(int,int,com.shimizukenta.secs.secs2.Secs2) -> b
-    481:485:boolean isOpen() -> isOpen
-    282:321:void lambda$open$0(java.net.SocketAddress,java.net.SocketAddress) -> lambda$open$0
+    65:243:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> <init>
+    87:182:void reading(java.nio.channels.AsynchronousSocketChannel) -> reading
+    186:191:java.nio.channels.AsynchronousSocketChannel getChannel() -> getChannel
+    198:230:void sendBytes(byte[]) -> sendBytes
+    236:236:com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpLogObserverFacade secs1OnTcpIpLogObserver() -> secs1OnTcpIpLogObserver
+    253:347:void open() -> open
+    358:430:void close() -> close
+    447:451:com.shimizukenta.secs.SecsMessage sendAndWaitReply(int,int,com.shimizukenta.secs.secs2.Secs2) -> a
+    472:472:com.shimizukenta.secs.SecsMessage sendAndWaitReply$4524968b(int,int,com.shimizukenta.secs.secs2.Secs2) -> b
+    482:486:boolean isOpen() -> isOpen
+    506:507:void setServer(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer) -> a
+    283:322:void lambda$open$0(java.net.SocketAddress,java.net.SocketAddress) -> lambda$open$0
     42:42:void <clinit>() -> <clinit>
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator$1 -> a$1:
     com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator this$0 -> a
-    66:66:void <init>(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator,com.shimizukenta.secs.secs1.AbstractSecs1CommunicatorConfig,java.util.concurrent.Executor) -> <init>
+    69:69:void <init>(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator,com.shimizukenta.secs.secs1.AbstractSecs1CommunicatorConfig,java.util.concurrent.Executor) -> <init>
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection -> com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection:
     java.util.logging.Logger logger -> logger
     java.nio.channels.AsynchronousSocketChannel channel -> channel
@@ -4391,7 +4400,13 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager -> b:
     203:205:java.util.List getAllConnections() -> a
     235:247:void close() -> close
     27:27:void <clinit>() -> <clinit>
-com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker -> c:
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManagerWithHandlers -> c:
+    java.util.logging.Logger logger -> logger
+    java.util.function.Consumer clientDisconnectedHandler -> clientDisconnectedHandler
+    33:35:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,long,long,java.util.function.Consumer) -> <init>
+    44:60:void removeConnection(java.net.SocketAddress) -> a
+    16:16:void <clinit>() -> <clinit>
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker -> d:
     java.util.logging.Logger logger -> logger
     java.util.Map messageSourceMap -> b
     java.util.Map receiveTimeAddressMap -> c
@@ -4426,97 +4441,98 @@ com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer -> com.
     52:87:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.lang.String,int,long,long) -> <init>
     96:104:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig) -> <init>
     112:113:void setClientConnectedHandler(java.util.function.Consumer) -> setClientConnectedHandler
-    121:122:void setClientDisconnectedHandler(java.util.function.Consumer) -> setClientDisconnectedHandler
-    130:131:void setMessageReceivedHandler(java.util.function.BiConsumer) -> setMessageReceivedHandler
-    139:149:void addSecsMessageReceiveListener(com.shimizukenta.secs.SecsMessageReceiveListener) -> addSecsMessageReceiveListener
-    158:158:java.util.Optional getMessageSource(com.shimizukenta.secs.SecsMessage) -> getMessageSource
+    121:132:void setClientDisconnectedHandler(java.util.function.Consumer) -> setClientDisconnectedHandler
+    140:141:void setMessageReceivedHandler(java.util.function.BiConsumer) -> setMessageReceivedHandler
+    149:159:void addSecsMessageReceiveListener(com.shimizukenta.secs.SecsMessageReceiveListener) -> addSecsMessageReceiveListener
+    168:168:java.util.Optional getMessageSource(com.shimizukenta.secs.SecsMessage) -> getMessageSource
     1225:1225:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager.getMessageSourceTracker():225:225 -> getMessageSource
-    1225:1225:java.util.Optional getMessageSource(com.shimizukenta.secs.SecsMessage):158 -> getMessageSource
+    1225:1225:java.util.Optional getMessageSource(com.shimizukenta.secs.SecsMessage):168 -> getMessageSource
     2053:2058:java.util.Optional com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker.getMessageSource(com.shimizukenta.secs.SecsMessage):53:58 -> getMessageSource
-    2053:2058:java.util.Optional getMessageSource(com.shimizukenta.secs.SecsMessage):158 -> getMessageSource
-    167:167:java.util.Collection getConnections() -> getConnections
-    176:196:void start() -> start
-    204:205:void open() -> open
-    211:235:void acceptConnections() -> b
-    244:353:void handleNewConnection(java.nio.channels.AsynchronousSocketChannel) -> a
+    2053:2058:java.util.Optional getMessageSource(com.shimizukenta.secs.SecsMessage):168 -> getMessageSource
+    177:177:java.util.Collection getConnections() -> getConnections
+    186:222:void start() -> start
+    230:231:void open() -> open
+    237:261:void acceptConnections() -> b
+    270:382:void handleNewConnection(java.nio.channels.AsynchronousSocketChannel) -> a
     2063:2090:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager.addConnection(java.nio.channels.AsynchronousSocketChannel,java.net.SocketAddress):63:90 -> a
-    2063:2090:void handleNewConnection(java.nio.channels.AsynchronousSocketChannel):248 -> a
-    379:404:java.util.Optional sendToClient(java.net.SocketAddress,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> sendToClient
-    409:410:void send(java.net.SocketAddress,com.shimizukenta.secs.SecsMessage,int,int,boolean) -> send
-    426:433:void send(java.net.SocketAddress,com.shimizukenta.secs.SecsMessage,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
-    437:445:void send(java.net.SocketAddress,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
-    453:458:com.shimizukenta.secs.gem.Gem gem(java.net.SocketAddress) -> gem
-    468:468:com.shimizukenta.secs.gem.Gem gem(com.shimizukenta.secs.SecsMessage) -> gem
-    472:473:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
-    476:477:void send(com.shimizukenta.secs.SecsMessage) -> send
-    480:481:void send(com.shimizukenta.secs.SecsMessage,com.shimizukenta.secs.secs2.Secs2) -> send
-    483:484:void send(com.shimizukenta.secs.SecsMessage,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
-    486:487:void send(com.shimizukenta.secs.SecsMessage,boolean) -> send
-    491:492:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean) -> send
-    509:514:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2) -> sendAndWaitReply
-    534:539:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2,long) -> sendAndWaitReply
-    554:568:void broadcastToAllClients(int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> broadcastToAllClients
-    577:577:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection getClientConnection(java.net.SocketAddress) -> getClientConnection
-    586:586:java.util.Collection getAllClientConnections() -> getAllClientConnections
-    595:595:int getClientCount() -> getClientCount
+    2063:2090:void handleNewConnection(java.nio.channels.AsynchronousSocketChannel):274 -> a
+    408:433:java.util.Optional sendToClient(java.net.SocketAddress,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> sendToClient
+    438:439:void send(java.net.SocketAddress,com.shimizukenta.secs.SecsMessage,int,int,boolean) -> send
+    455:462:void send(java.net.SocketAddress,com.shimizukenta.secs.SecsMessage,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
+    466:474:void send(java.net.SocketAddress,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
+    482:487:com.shimizukenta.secs.gem.Gem gem(java.net.SocketAddress) -> gem
+    497:497:com.shimizukenta.secs.gem.Gem gem(com.shimizukenta.secs.SecsMessage) -> gem
+    501:502:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
+    505:506:void send(com.shimizukenta.secs.SecsMessage) -> send
+    509:510:void send(com.shimizukenta.secs.SecsMessage,com.shimizukenta.secs.secs2.Secs2) -> send
+    512:513:void send(com.shimizukenta.secs.SecsMessage,boolean,com.shimizukenta.secs.secs2.Secs2) -> send
+    515:516:void send(com.shimizukenta.secs.SecsMessage,boolean) -> send
+    520:521:void send(com.shimizukenta.secs.SecsMessage,int,int,boolean) -> send
+    538:543:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2) -> sendAndWaitReply
+    563:568:com.shimizukenta.secs.SecsMessage sendAndWaitReply(java.net.SocketAddress,int,int,com.shimizukenta.secs.secs2.Secs2,long) -> sendAndWaitReply
+    583:597:void broadcastToAllClients(int,int,boolean,com.shimizukenta.secs.secs2.Secs2) -> broadcastToAllClients
+    606:606:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection getClientConnection(java.net.SocketAddress) -> getClientConnection
+    615:615:java.util.Collection getAllClientConnections() -> getAllClientConnections
+    624:624:int getClientCount() -> getClientCount
     2128:2128:int com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager.getConnectionCount():128:128 -> getClientCount
-    2128:2128:int getClientCount():595 -> getClientCount
-    602:605:void stop() -> stop
-    614:642:void close() -> close
-    650:650:boolean isRunning() -> isRunning
-    659:659:boolean isClosed() -> isClosed
-    665:666:void addSecs1MessageReceiveBiListener(com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener) -> addSecs1MessageReceiveBiListener
-    674:674:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager getConnectionManager() -> getConnectionManager
-    679:680:void addSecsLogListener(com.shimizukenta.secs.SecsLogListener) -> addSecsLogListener
-    683:684:void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener) -> addReceiveMessagePassThroughListener
-    687:688:void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener) -> addSecsCommunicatableStateChangeListener
-    317:330:void lambda$handleNewConnection$2(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsLog) -> lambda$handleNewConnection$2
+    2128:2128:int getClientCount():624 -> getClientCount
+    631:634:void stop() -> stop
+    643:671:void close() -> close
+    679:679:boolean isRunning() -> isRunning
+    688:688:boolean isClosed() -> isClosed
+    694:695:void addSecs1MessageReceiveBiListener(com.shimizukenta.secs.secs1.Secs1MessageReceiveBiListener) -> addSecs1MessageReceiveBiListener
+    703:703:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager getConnectionManager() -> getConnectionManager
+    708:709:void addSecsLogListener(com.shimizukenta.secs.SecsLogListener) -> addSecsLogListener
+    712:713:void addReceiveMessagePassThroughListener(com.shimizukenta.secs.SecsMessagePassThroughListener) -> addReceiveMessagePassThroughListener
+    716:717:void addSecsCommunicatableStateChangeListener(com.shimizukenta.secs.SecsCommunicatableStateChangeListener) -> addSecsCommunicatableStateChangeListener
+    346:359:void lambda$handleNewConnection$2(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsLog) -> lambda$handleNewConnection$2
     3077:3078:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection.updateLastActivityTime():77:78 -> lambda$handleNewConnection$2
-    3077:3078:void lambda$handleNewConnection$2(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsLog):317 -> lambda$handleNewConnection$2
-    287:311:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage) -> lambda$handleNewConnection$1
+    3077:3078:void lambda$handleNewConnection$2(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsLog):346 -> lambda$handleNewConnection$2
+    316:340:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage) -> lambda$handleNewConnection$1
     4077:4078:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection.updateLastActivityTime():77:78 -> lambda$handleNewConnection$1
-    4077:4078:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage):287 -> lambda$handleNewConnection$1
+    4077:4078:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage):316 -> lambda$handleNewConnection$1
     4183:4184:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager.trackMessageSource(com.shimizukenta.secs.SecsMessage,java.net.SocketAddress):183:184 -> lambda$handleNewConnection$1
-    4183:4184:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage):290 -> lambda$handleNewConnection$1
+    4183:4184:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage):319 -> lambda$handleNewConnection$1
     5037:5044:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker.trackMessageSource(com.shimizukenta.secs.SecsMessage,java.net.SocketAddress):37:44 -> lambda$handleNewConnection$1
     5037:5044:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager.trackMessageSource(com.shimizukenta.secs.SecsMessage,java.net.SocketAddress):183 -> lambda$handleNewConnection$1
-    5037:5044:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage):290 -> lambda$handleNewConnection$1
-    147:148:void lambda$addSecsMessageReceiveListener$0(com.shimizukenta.secs.SecsMessageReceiveListener,com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection) -> lambda$addSecsMessageReceiveListener$0
+    5037:5044:void lambda$handleNewConnection$1(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection,java.net.SocketAddress,com.shimizukenta.secs.SecsMessage):319 -> lambda$handleNewConnection$1
+    157:158:void lambda$addSecsMessageReceiveListener$0(com.shimizukenta.secs.SecsMessageReceiveListener,com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection) -> lambda$addSecsMessageReceiveListener$0
     39:39:void <clinit>() -> <clinit>
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer$1 -> com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer$1:
     com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer this$0 -> a
-    215:215:void <init>(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer) -> <init>
-    215:215:void failed(java.lang.Throwable,java.lang.Object) -> failed
-    1227:1233:void failed$76300639(java.lang.Throwable):227:233 -> failed
-    1227:1233:void failed(java.lang.Throwable,java.lang.Object):215 -> failed
+    241:241:void <init>(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer) -> <init>
+    241:241:void failed(java.lang.Throwable,java.lang.Object) -> failed
+    1253:1259:void failed$76300639(java.lang.Throwable):253:259 -> failed
+    1253:1259:void failed(java.lang.Throwable,java.lang.Object):241 -> failed
     2037:2037:java.util.concurrent.atomic.AtomicBoolean com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer.access$200(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer):37:37 -> failed
-    2037:2037:void failed$76300639(java.lang.Throwable):227 -> failed
-    2037:2037:void failed(java.lang.Throwable,java.lang.Object):215 -> failed
+    2037:2037:void failed$76300639(java.lang.Throwable):253 -> failed
+    2037:2037:void failed(java.lang.Throwable,java.lang.Object):241 -> failed
     3037:3037:java.util.concurrent.atomic.AtomicBoolean com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer.access$300(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer):37:37 -> failed
-    3037:3037:void failed$76300639(java.lang.Throwable):227 -> failed
-    3037:3037:void failed(java.lang.Throwable,java.lang.Object):215 -> failed
+    3037:3037:void failed$76300639(java.lang.Throwable):253 -> failed
+    3037:3037:void failed(java.lang.Throwable,java.lang.Object):241 -> failed
     4037:4037:java.util.logging.Logger com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer.access$400():37:37 -> failed
-    4037:4037:void failed$76300639(java.lang.Throwable):228 -> failed
-    4037:4037:void failed(java.lang.Throwable,java.lang.Object):215 -> failed
+    4037:4037:void failed$76300639(java.lang.Throwable):254 -> failed
+    4037:4037:void failed(java.lang.Throwable,java.lang.Object):241 -> failed
     5037:5037:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer.access$000(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer):37:37 -> failed
-    5037:5037:void failed$76300639(java.lang.Throwable):231 -> failed
-    5037:5037:void failed(java.lang.Throwable,java.lang.Object):215 -> failed
-    215:215:void completed(java.lang.Object,java.lang.Object) -> completed
-    5219:5223:void completed$573fe3fe(java.nio.channels.AsynchronousSocketChannel):219:223 -> completed
-    5219:5223:void completed(java.lang.Object,java.lang.Object):215 -> completed
+    5037:5037:void failed$76300639(java.lang.Throwable):257 -> failed
+    5037:5037:void failed(java.lang.Throwable,java.lang.Object):241 -> failed
+    241:241:void completed(java.lang.Object,java.lang.Object) -> completed
+    5245:5249:void completed$573fe3fe(java.nio.channels.AsynchronousSocketChannel):245:249 -> completed
+    5245:5249:void completed(java.lang.Object,java.lang.Object):241 -> completed
     6037:6037:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer.access$000(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer):37:37 -> completed
-    6037:6037:void completed$573fe3fe(java.nio.channels.AsynchronousSocketChannel):219 -> completed
-    6037:6037:void completed(java.lang.Object,java.lang.Object):215 -> completed
+    6037:6037:void completed$573fe3fe(java.nio.channels.AsynchronousSocketChannel):245 -> completed
+    6037:6037:void completed(java.lang.Object,java.lang.Object):241 -> completed
     7037:7037:void com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer.access$100(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer,java.nio.channels.AsynchronousSocketChannel):37:37 -> completed
-    7037:7037:void completed$573fe3fe(java.nio.channels.AsynchronousSocketChannel):222 -> completed
-    7037:7037:void completed(java.lang.Object,java.lang.Object):215 -> completed
-com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator -> d:
+    7037:7037:void completed$573fe3fe(java.nio.channels.AsynchronousSocketChannel):248 -> completed
+    7037:7037:void completed(java.lang.Object,java.lang.Object):241 -> completed
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator -> e:
     com.shimizukenta.secs.SecsMessage sendAndWaitReply(int,int,com.shimizukenta.secs.secs2.Secs2) -> a
     com.shimizukenta.secs.SecsMessage sendAndWaitReply$4524968b(int,int,com.shimizukenta.secs.secs2.Secs2) -> b
-    77:77:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator newInstance(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> newInstance
-    92:108:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator open(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> open
-com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator$1 -> d$1:
-    77:77:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> <init>
+    71:71:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator newInstance(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> newInstance
+    void setServer(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer) -> a
+    93:109:com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator open(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> open
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator$1 -> e$1:
+    71:71:void <init>(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> <init>
 com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpChannelConnectionLog -> com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpChannelConnectionLog:
     long serialVersionUID -> serialVersionUID
     com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpChannelConnectionLogState state -> state

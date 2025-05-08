@@ -24,12 +24,6 @@ import com.shimizukenta.secs.secs2.Secs2;
  */
 public interface Secs1OnTcpIpMultiClientCommunicator extends Secs1Communicator, Secs1OnTcpIpLogObservable {
 
-    /**
-     * Get remote socket address of this client connection
-     *
-     * @return remote socket address
-     */
-    public SocketAddress getRemoteSocketAddress();
 
     /**
      * Send SECS message and wait reply
@@ -76,6 +70,13 @@ public interface Secs1OnTcpIpMultiClientCommunicator extends Secs1Communicator, 
 
         return new AbstractSecs1OnTcpIpMultiClientCommunicator(config, channel) {};
     }
+
+    /**
+     * 设置服务器引用
+     *
+     * @param server 服务器实例
+     */
+    public void setServer(MultiClientSecsServer server);
 
     /**
      * Create SECS-I-on-TCP/IP-MultiClient instance and {@link #open()}.
