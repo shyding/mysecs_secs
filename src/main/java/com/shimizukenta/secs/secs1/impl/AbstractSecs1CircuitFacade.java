@@ -184,7 +184,7 @@ public abstract class AbstractSecs1CircuitFacade implements Runnable {
 					}
 				}
 			} catch (Exception e) {
-				e.printStackTrace();
+//				e.printStackTrace();
 				throw e;
 			}
 		}

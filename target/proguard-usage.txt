@@ -1,37 +1,419 @@
+com.shimizukenta.secs.AbstractSecsCommunicatorConfig$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.AlreadyClosedException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.AlreadyOpenedException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.ExecutorServiceShutdownFailedException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.SecsException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.SecsSendMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.SecsWaitReplyMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.UnsetSocketAddressException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.AliasNotFoundDynamicEventReportException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.DynamicCollectionEvent$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.DynamicEventReportException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.DynamicLink$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.DynamicReport$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractClock:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractClock$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractDynamicCollectionEvent:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractDynamicEventReportConfig:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractDynamicLink:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractDynamicReport:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractGem$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.gem.impl.AbstractGemConfig:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.AbstractHsmsCommunicatorConfig:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmChannelAlreadyShutdownException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsConnectionModeIllegalStateException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsControlMessageLengthBytesGreaterThanTenException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsDetectTerminateException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsMessageHeaderByteLengthIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsMessageLengthBytesException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsMessageLengthBytesLowerThanTenException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsNotConnectedException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsNotExpectControlTypeReplyMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsRejectException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsSendMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsSessionNotSelectedException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsTimeoutT3Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsTimeoutT6Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsTimeoutT7Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsTimeoutT8Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsTooBigSendMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.HsmsWaitReplyMessageException:
+    private static final long serialVersionUID
 com.shimizukenta.secs.hsms.impl.AbstractHsmsAsynchronousSocketChannelFacade:
     private static final int defaultSendBufferSize
     private static final long defaultReceiveBodySize
+com.shimizukenta.secs.hsms.impl.AbstractHsmsChannelConnectionLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.impl.AbstractHsmsChannelConnectionLog$1:
+    private static final long serialVersionUID
 com.shimizukenta.secs.hsms.impl.AbstractHsmsMessage:
+    private static final long serialVersionUID
     private static final int HEADER_SIZE
+com.shimizukenta.secs.hsms.impl.AbstractHsmsMessageBuilder$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.impl.AbstractHsmsMessagePassThroughLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.impl.AbstractHsmsMessagePassThroughLog$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.impl.AbstractHsmsSessionCommunicateStateLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsms.impl.AbstractHsmsSessionCommunicateStateLog$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsmsgs.AddSessionIdIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsmsgs.HsmsGsCommunicatorConfig:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsmsgs.HsmsGsUnknownSessionIdException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsmsss.HsmsSsCommunicatorConfig:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsmsss.HsmsSsPassiveReceiveNotSelectRequestException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.hsmsss.SessionIdIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.AbstractSecsCommunicateStateChangeLog:
+    private static final long serialVersionUID
 com.shimizukenta.secs.impl.AbstractSecsLog:
+    private static final long serialVersionUID
     private static final java.lang.String SPACE
+com.shimizukenta.secs.impl.AbstractSecsLogObserverFacade$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.AbstractSecsMessage:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.AbstractSecsMessagePassThroughLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.AbstractSecsMessageWithSource:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.AbstractSecsThrowableLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.AbstractSecsWaitReplyMessageExceptionLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.impl.SecsTimeoutImpl:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.BooleanProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.DoubleProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.FloatProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.IntegerProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.ListProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.LongProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.MapProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.ObjectProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.SetProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.StringProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.TimeoutAndUnit$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.TimeoutProperty$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractBiPredicateCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractBooleanCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractBooleanProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractCollectionCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractCollectionProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractDoubleCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractDoubleProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractFloatCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractFloatProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractIntegerCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractIntegerProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractListCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractListProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractLogicalCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractLongCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractLongProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractMapProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractNumberCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractNumberProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractObjectCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractObjectProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractPredicateCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractSetCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractSetProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractStringCompution:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractStringProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractTimeoutAndUnit:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractTimeoutProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableBooleanProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableDoubleProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableFloatProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableIntegerProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableLongProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableObjectProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.AbstractUnmodifiableStringProperty:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.BooleanUtils$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.BooleanUtils$InnerBi:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.BooleanUtils$InnerCollection:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.BooleanUtils$InnerMono:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.CollectionUtils$InnerCollection:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.CollectionUtils$InnerSize:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.MapUtils$InnerKeySet:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.MapUtils$InnerMap:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.MapUtils$InnerSize:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$2:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$3:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$4:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$5:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerBiDouble:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerBiFloat:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerBiInteger:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerBiLong:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerCollectionDouble:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerCollectionFloat:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerCollectionInteger:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerCollectionLong:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerMonoDouble:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerMonoFloat:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerMonoInteger:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.NumberUtils$InnerMonoLong:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.ObjectUtils$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.ObjectUtils$2:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.ObjectUtils$3:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$InnerBiPredicate:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$InnerMonoInteger:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$InnerMonoPredicate:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$InnerMonoString:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$InnerObservableString:
+    private static final long serialVersionUID
+com.shimizukenta.secs.local.property.impl.StringUtils$InnerStringJoining:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.DeviceIdIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.RetryCountIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1IllegalLengthByteException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1MessageBlock$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1MessageEmptyBlockListIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1MessageHeaderByteLengthIllegalArgumentException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1NotReceiveAckException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1NotReceiveNextBlockEnqException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1RetryCountUpException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1RetryOverException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1SendByteException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1SendMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1SumCheckMismatchException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1TimeoutT1Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1TimeoutT2Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1TimeoutT3Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1TimeoutT4Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1TooBigMessageBodyException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1TooBigSendMessageException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.Secs1WaitReplyMessageException:
+    private static final long serialVersionUID
 com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade:
     private static final byte ENQ
     private static final byte EOT
     private static final byte ACK
     private static final byte NAK
+com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.AbstractSecs1Message:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.AbstractSecs1MessageBlock:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.AbstractSecs1MessageBlockPassThroughLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.AbstractSecs1MessageBlockPassThroughLog$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.AbstractSecs1MessagePassThroughLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.AbstractSecs1MessagePassThroughLog$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1.impl.Secs1InvalidMessage:
+    private static final long serialVersionUID
 com.shimizukenta.secs.secs1.impl.Secs1SendedMessageBlockLog:
+    private static final long serialVersionUID
     private static final java.lang.String commonSubject
 com.shimizukenta.secs.secs1.impl.Secs1TrySendMessageBlockLog:
+    private static final long serialVersionUID
     private static final java.lang.String commonSubject
 com.shimizukenta.secs.secs1.impl.Secs1ValidMessage:
+    private static final long serialVersionUID
     private static final int HEADER_SIZE
-com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnection:
-    68:68:public java.nio.channels.AsynchronousSocketChannel getChannel()
-    88:88:public long getCreationTime()
-    245:245:public boolean isConnected()
-    254:254:public long getLastActivityTime()
-    263:263:public java.net.SocketAddress getRemoteSocketAddress()
-    282:301:public boolean sendHeartbeat()
+com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpCommunicatorConfig:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpDetectTerminateException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpNotConnectedException:
+    private static final long serialVersionUID
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ClientConnectionManager:
     215:216:public java.net.SocketAddress getMessageSource(com.shimizukenta.secs.SecsMessage)
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.ExceptionUtil
 com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MessageSourceTracker:
     94:106:private java.net.SocketAddress findMostRecentAddress()
     115:124:public void clearMessageSource(com.shimizukenta.secs.SecsMessage)
+com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpChannelConnectionLog:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs1ontcpip.impl.AbstractSecs1OnTcpIpChannelConnectionLog$1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2BuildException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2BytesParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2Exception:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2IllegalDataFormatException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2IndexOutOfBoundsException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2LengthByteOutOfRangeException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.Secs2UnsupportedDataFormatException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.AbstractSecs2:
+    private static final long serialVersionUID
 com.shimizukenta.secs.secs2.impl.Secs2Ascii:
+    private static final long serialVersionUID
     private static final byte BACKSLASH
+com.shimizukenta.secs.secs2.impl.Secs2BigInteger:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Binary:
+    private static final long serialVersionUID
 com.shimizukenta.secs.secs2.impl.Secs2Boolean:
+    private static final long serialVersionUID
     private static final byte BYTE_TRUE
     private static final byte BYTE_FALSE
     private static final java.lang.String STRING_TRUE
@@ -40,7 +422,58 @@ com.shimizukenta.secs.secs2.impl.Secs2Builders$SingletonHolder:
     11:11:private Secs2Builders$SingletonHolder()
 com.shimizukenta.secs.secs2.impl.Secs2BytesParsers$SingletonHolder:
     14:14:private Secs2BytesParsers$SingletonHolder()
+com.shimizukenta.secs.secs2.impl.Secs2Float4:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Float8:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Int1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Int2:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Int4:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Int8:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Jis8:
+    private static final long serialVersionUID
 com.shimizukenta.secs.secs2.impl.Secs2List:
+    private static final long serialVersionUID
     private static final java.lang.String SPACE
+com.shimizukenta.secs.secs2.impl.Secs2Number:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2RawBytes:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Uint1:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Uint2:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Uint4:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Uint8:
+    private static final long serialVersionUID
+com.shimizukenta.secs.secs2.impl.Secs2Unicode:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlDataItemAsciiParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlDataItemBooleanParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlDataItemNumberParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlDataItemParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlDataItemUnsupportItemTypeParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlNotFoundEndPeriodException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlParseException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlParseFunctionOutOfRangeException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.SmlParseStreamOutOfRangeException:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.impl.AbstractSmlMessage:
+    private static final long serialVersionUID
+com.shimizukenta.secs.sml.impl.AbstractSmlMessageParser$1:
+    private static final long serialVersionUID
 com.shimizukenta.secs.sml.impl.SmlMessageParsers$SingletonHolder:
     23:23:private SmlMessageParsers$SingletonHolder()

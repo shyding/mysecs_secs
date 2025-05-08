@@ -1,0 +1,17 @@
+com.shimizukenta.secs.impl.AbstractSecsMessageWithSource -> com.shimizukenta.secs.impl._a:
+    public void setSourceAddress(java.net.SocketAddress) -> setSourceAddress
+    public java.net.SocketAddress getSourceAddress() -> getSourceAddress
+    public boolean isOutBound() -> isOutBound
+    public void setOutBound(boolean) -> setOutBound
+    protected void <init>() -> <init>
+    
+com.shimizukenta.secs.secs1.impl.AbstractSecs1CircuitFacade -> com.shimizukenta.secs.secs1.impl._b:
+    public void run() -> run
+    
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.AbstractSecs1OnTcpIpMultiClientCommunicator -> com.shimizukenta.secs.secs1ontcpip.ext.multiclient._c:
+    public void setServer(com.shimizukenta.secs.secs1ontcpip.ext.multiclient.MultiClientSecsServer) -> setServer
+    
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator$1 -> com.shimizukenta.secs.secs1ontcpip.ext.multiclient._d:
+com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator -> com.shimizukenta.secs.secs1ontcpip.ext.multiclient._e:
+    public static com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator newInstance(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig,java.nio.channels.AsynchronousSocketChannel) -> newInstance
+    public static com.shimizukenta.secs.secs1ontcpip.ext.multiclient.Secs1OnTcpIpMultiClientCommunicator open(com.shimizukenta.secs.secs1ontcpip.Secs1OnTcpIpReceiverCommunicatorConfig) -> open
